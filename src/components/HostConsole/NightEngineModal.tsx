@@ -13,7 +13,7 @@ interface NightEngineModalProps {
   isOpen: boolean;
   onClose: () => void;
   room: RoomState;
-  onResolveNight: (deadPlayerIds: string[], mutedPlayerId?: string, narrative?: string) => void;
+  onResolveNight: (deadPlayerIds: string[], mutedPlayerId?: string, narrative?: string, brokenShieldPlayerIds?: string[]) => void;
   onBroadcastNightAudio?: () => void;
   language: Language;
 }
@@ -40,7 +40,8 @@ export const NightEngineModal: React.FC<NightEngineModalProps> = ({
   const bartender = livingPlayers.find(p => p.role === 'BARTENDER' || (p.role as string) === 'SAGHI');
   const gunner = livingPlayers.find(p => p.role === 'GUNNER' || (p.role as string) === 'TOOFANGDAR');
 
-  const isIntroNight = room.dayNumber <= 1 && (room.phase === 'INTRO_NIGHT' || room.phase === 'NIGHT');
+  // Only the dedicated intro phase is an intro night. Night 1 (after day 1) is a real night with shots and saves.
+  const isIntroNight = room.phase === 'INTRO_NIGHT';
   const firstNightAwake = room.firstNightAwakeRoles || ['BARTENDER', 'DETECTIVE'];
 
   // Selected Targets for this night
@@ -97,6 +98,7 @@ export const NightEngineModal: React.FC<NightEngineModalProps> = ({
   // Auto Conflict Resolution Preview
   const resolveConflicts = () => {
     const deaths: string[] = [];
+    const brokenShields: string[] = [];
     const logs: string[] = [];
 
     // Saghi / Bartender effect
@@ -117,6 +119,8 @@ export const NightEngineModal: React.FC<NightEngineModalProps> = ({
       if (doctorSaveTarget === mafiaKillTarget) {
         logs.push(isEn ? `Doctor saved ${target?.name}'s life from mafia shot.` : `پزشک شهر جان ${target?.name} را در برابر شلیک مافیا نجات داد.`);
       } else if (target?.role === 'ARMORED' && target.hasShield !== false) {
+        // The vest absorbs exactly one shot: remember it so the next shot is lethal.
+        brokenShields.push(mafiaKillTarget);
         logs.push(isEn ? `Mafia shot hit Armored (${target?.name}) and destroyed vest.` : `شلیک مافیا به زره‌پوش (${target?.name}) اصابت کرد و جلیقه او از بین رفت.`);
       } else {
         deaths.push(mafiaKillTarget);
@@ -153,17 +157,20 @@ export const NightEngineModal: React.FC<NightEngineModalProps> = ({
       logs.push(isEn ? `Recorded claim: ${claimsNote.trim()}` : `ادعای ثبت‌شده: ${claimsNote.trim()}`);
     }
 
-    return { deaths, logs };
+    return { deaths, logs, brokenShields };
   };
 
-  const { deaths: predictedDeaths, logs: predictedLogs } = resolveConflicts();
+  const { deaths: predictedDeaths, logs: predictedLogs, brokenShields: predictedBrokenShields } = resolveConflicts();
 
   const handleApplyResolution = () => {
     soundEngine.playGong();
     const narrative = predictedLogs.join(' ');
-    onResolveNight(predictedDeaths, natashaMuteTarget || undefined, narrative);
+    onResolveNight(predictedDeaths, natashaMuteTarget || undefined, narrative, predictedBrokenShields);
     onClose();
   };
+
+  // Closed modal renders nothing (it used to stay mounted and cover the whole host console).
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/95 backdrop-blur-md animate-in fade-in duration-200" dir={isEn ? 'ltr' : 'rtl'}>

@@ -45,7 +45,7 @@ interface HostConsoleViewProps {
   onRevivePlayer: (playerId: string) => void;
   onSendToDefense: (playerId: string) => void;
   onAddAccusation: (accuserId: string, targetId: string) => void;
-  onResolveNight: (deadPlayerIds: string[], mutedPlayerId?: string, narrative?: string) => void;
+  onResolveNight: (deadPlayerIds: string[], mutedPlayerId?: string, narrative?: string, brokenShieldPlayerIds?: string[]) => void;
   onPublishChronicle: (text: string) => void;
   onEliminatePlayer: (playerId: string) => void;
   onClearDefense: () => void;
@@ -126,8 +126,9 @@ export const HostConsoleView: React.FC<HostConsoleViewProps> = ({
 
   const handleAdvancePhase = () => {
     switch (room.phase) {
+      // Night N belongs to day N; the day counter moves forward at sunrise (same rule as the god table and the stepper).
       case 'NIGHT':
-        onSetPhase('DAY_DISCUSSION', room.dayNumber);
+        onSetPhase('DAY_DISCUSSION', room.dayNumber + 1);
         break;
       case 'DAY_DISCUSSION':
         onSetPhase('DAY_ACCUSATION', room.dayNumber);
@@ -142,7 +143,7 @@ export const HostConsoleView: React.FC<HostConsoleViewProps> = ({
         onSetPhase('DAY_LAST_WORDS', room.dayNumber);
         break;
       case 'DAY_LAST_WORDS':
-        onSetPhase('NIGHT', room.dayNumber + 1);
+        onSetPhase('NIGHT', room.dayNumber);
         break;
       default:
         break;

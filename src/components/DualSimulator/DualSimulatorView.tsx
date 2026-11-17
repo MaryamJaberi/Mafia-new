@@ -27,7 +27,7 @@ interface DualSimulatorViewProps {
   onRevivePlayer: (playerId: string) => void;
   onSendToDefense: (playerId: string) => void;
   onAddAccusation: (accuserId: string, targetId: string) => void;
-  onResolveNight: (deadPlayerIds: string[], mutedPlayerId?: string, narrative?: string) => void;
+  onResolveNight: (deadPlayerIds: string[], mutedPlayerId?: string, narrative?: string, brokenShieldPlayerIds?: string[]) => void;
   onPublishChronicle: (text: string) => void;
   onEliminatePlayer: (playerId: string) => void;
   onClearDefense: () => void;

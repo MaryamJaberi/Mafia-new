@@ -4,6 +4,7 @@ import {
   Check, Plus, Minus, HelpCircle, Copy, Share2, AlertCircle, 
   Bot, RefreshCw, Moon, Sun, Info, Trash2, Send
 } from 'lucide-react';
+import { getLocalizedRoleName } from '../../utils/scenarioLocalization';
 import { DEFAULT_SCENARIOS, ROLE_DEFINITIONS } from '../../utils/scenarios';
 import { RoleId, Scenario, Language, DeckRoleItem } from '../../types/mafia';
 import { soundEngine } from '../../utils/audioSynth';
@@ -119,8 +120,8 @@ export const GameCreatorScreen: React.FC<GameCreatorScreenProps> = ({
         ? `Scenario: ${activeScenario.name}
 Total Seats: ${totalSeats} players
 Deck Composition:
-- Mafia (${mafiaCount}): ${customDeck.filter(d => ROLE_DEFINITIONS[d.roleId]?.affiliation === 'MAFIA').map(d => ROLE_DEFINITIONS[d.roleId]?.nameKey?.replace('role_', '')).join(', ')}
-- Citizen (${citizenCount}): ${customDeck.filter(d => ROLE_DEFINITIONS[d.roleId]?.affiliation === 'CITIZEN').map(d => ROLE_DEFINITIONS[d.roleId]?.nameKey?.replace('role_', '')).join(', ')}
+- Mafia (${mafiaCount}): ${customDeck.filter(d => ROLE_DEFINITIONS[d.roleId]?.affiliation === 'MAFIA').map(d => getLocalizedRoleName(d.roleId, language)).join(', ')}
+- Citizen (${citizenCount}): ${customDeck.filter(d => ROLE_DEFINITIONS[d.roleId]?.affiliation === 'CITIZEN').map(d => getLocalizedRoleName(d.roleId, language)).join(', ')}
 - Night 1 Awake Roles: ${firstNightAwakeRoles.join(', ')}
 
 Host / God Question: ${aiQuestion}
@@ -132,8 +133,8 @@ Please analyze this deck as a professional Mafia tournament referee in 2 to 3 co
         : `سناریوی انتخابی: ${activeScenario.name}
 تعداد صندلی‌ها: ${totalSeats} نفر
 ترکیب کارت‌های دک:
-- مافیا (${mafiaCount}): ${customDeck.filter(d => ROLE_DEFINITIONS[d.roleId]?.affiliation === 'MAFIA').map(d => ROLE_DEFINITIONS[d.roleId]?.nameKey?.replace('role_', '')).join(', ')}
-- شهروند (${citizenCount}): ${customDeck.filter(d => ROLE_DEFINITIONS[d.roleId]?.affiliation === 'CITIZEN').map(d => ROLE_DEFINITIONS[d.roleId]?.nameKey?.replace('role_', '')).join(', ')}
+- مافیا (${mafiaCount}): ${customDeck.filter(d => ROLE_DEFINITIONS[d.roleId]?.affiliation === 'MAFIA').map(d => getLocalizedRoleName(d.roleId, language)).join(', ')}
+- شهروند (${citizenCount}): ${customDeck.filter(d => ROLE_DEFINITIONS[d.roleId]?.affiliation === 'CITIZEN').map(d => getLocalizedRoleName(d.roleId, language)).join(', ')}
 - نقش‌های شب اول بیدار: ${firstNightAwakeRoles.join(', ')}
 
 پرسش داور/خدا: ${aiQuestion}
@@ -462,7 +463,7 @@ Please analyze this deck as a professional Mafia tournament referee in 2 to 3 co
                       : 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
                   }`}
                 >
-                  <span>{def.nameKey?.replace('role_', '') || item.roleId}</span>
+                  <span>{getLocalizedRoleName(item.roleId, language)}</span>
                   {def.counterpartRoleName && (
                     <span className="text-[10px] opacity-70">⚔️ {def.counterpartRoleName}</span>
                   )}
@@ -492,7 +493,7 @@ Please analyze this deck as a professional Mafia tournament referee in 2 to 3 co
                     className="px-2.5 py-1 rounded-lg bg-[#181822] hover:bg-white/10 text-zinc-300 text-[11px] font-bold border border-white/5 flex items-center gap-1 cursor-pointer"
                   >
                     <Plus className="w-3 h-3 text-amber-400" />
-                    <span>{def.nameKey?.replace('role_', '')}</span>
+                    <span>{getLocalizedRoleName(r, language)}</span>
                   </button>
                 );
               })}

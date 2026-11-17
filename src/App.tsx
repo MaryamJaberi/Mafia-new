@@ -45,6 +45,7 @@ import { translations } from './utils/translations';
 import { QrCode, Smartphone, Crown, Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 import { HomeScreen } from './components/HomeScreen';
 import { GameCreatorScreen } from './components/HostConsole/GameCreatorScreen';
+import { applyLocalAction, isLocalAction, shuffle } from './engine/localActions';
 import { RulesBriefingChecklistModal } from './components/HostConsole/RulesBriefingChecklistModal';
 import { GamePhaseStepper } from './components/common/GamePhaseStepper';
 
@@ -331,6 +332,15 @@ export default function App() {
   const dispatchAction = useCallback(async (actionType: string, payload: Record<string, unknown> = {}) => {
     if (!room) return;
 
+    // Single local engine (src/engine/localActions.ts): used on static hosting and whenever the backend is unreachable.
+    const applyLocally = () => {
+      if (!isLocalAction(actionType)) {
+        console.warn(`Unknown host action "${actionType}" — nothing was changed.`);
+        return;
+      }
+      setRoom(prev => (prev ? applyLocalAction(prev, actionType, payload, { language }) : null));
+    };
+
     try {
       const res = await fetch(`/api/rooms/${room.roomId}/action`, {
         method: 'POST',
@@ -346,161 +356,18 @@ export default function App() {
         const data = await res.json();
         if (data && data.room) {
           setRoom(data.room);
+          return;
         }
       }
+      // The backend answered but did not apply the action (e.g. it does not own this room):
+      // keep the table working by applying it on this device.
+      console.warn(`Backend did not apply ${actionType} (status ${res.status}); applying it locally.`);
+      applyLocally();
     } catch (err) {
-      console.warn('Backend action request failed, applying optimistic local state:', err);
-      
-      // Fallback local mutations
-      setRoom(prev => {
-        if (!prev) return null;
-        const copy: RoomState = JSON.parse(JSON.stringify(prev));
-
-        if (actionType === 'SET_PHASE') {
-          copy.phase = (payload.phase as GamePhase) || copy.phase;
-          if (typeof payload.dayNumber === 'number') copy.dayNumber = payload.dayNumber;
-        } else if (actionType === 'TIMER_CONTROL') {
-          copy.timerSeconds = payload.seconds as number;
-          copy.timerTotal = payload.total as number;
-          copy.isTimerRunning = payload.isRunning as boolean;
-        } else if (actionType === 'KILL_PLAYER') {
-          const p = copy.players.find(x => x.id === payload.playerId);
-          if (p) p.isAlive = false;
-        } else if (actionType === 'REVIVE_PLAYER') {
-          const p = copy.players.find(x => x.id === payload.playerId);
-          if (p) p.isAlive = true;
-        } else if (actionType === 'ADD_ACCUSATION') {
-          const newAcc: Accusation = {
-            id: `acc_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-            accuserId: payload.accuserId as string,
-            targetId: payload.targetId as string,
-            dayNumber: copy.dayNumber,
-            timestamp: Date.now()
-          };
-          copy.accusations.push(newAcc);
-        } else if (actionType === 'CHANGE_ROLE') {
-          const p = copy.players.find(x => x.id === payload.playerId);
-          if (p) p.role = payload.role as RoleId;
-        } else if (actionType === 'RENAME_PLAYER') {
-          const p = copy.players.find(x => x.id === payload.playerId);
-          if (p) p.name = payload.newName as string;
-        } else if (actionType === 'KICK_PLAYER') {
-          copy.players = copy.players.filter(x => x.id !== payload.playerId);
-        } else if (actionType === 'ADD_SINGLE_PLAYER') {
-          const playerName = (payload.name && typeof payload.name === 'string' && payload.name.trim().length > 0)
-            ? (payload.name as string).trim().slice(0, 30)
-            : `${language === 'en' ? 'Player' : 'بازیکن'} ${copy.players.length + 1}`;
-          const targetSeat = typeof payload.seatNumber === 'number' ? payload.seatNumber : (copy.players.length + 1);
-          const playerRole = (payload.role && typeof payload.role === 'string') ? payload.role : 'CITIZEN_SIMPLE';
-          const playerAvatar = (payload.avatar && typeof payload.avatar === 'string') ? payload.avatar : '🕵️‍♂️';
-
-          const newP: Player = {
-            id: `p_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-            name: playerName,
-            avatar: playerAvatar,
-            role: playerRole as any,
-            isAlive: true,
-            isConnected: true,
-            isReady: true,
-            isHost: false,
-            joinedAt: Date.now(),
-            seatNumber: targetSeat
-          };
-          copy.players.push(newP);
-        } else if (actionType === 'LOCK_LOBBY') {
-          copy.isLobbyLocked = payload.locked as boolean;
-        } else if (actionType === 'UPDATE_SCENARIO') {
-          copy.scenarioId = payload.scenarioId as string;
-        } else if (actionType === 'REPLAY_SET') {
-          if (Array.isArray(payload.players)) {
-            copy.players = (payload.players as Player[]).map((p, idx) => ({
-              ...p,
-              isAlive: true,
-              isConnected: true,
-              isReady: true,
-              seatNumber: p.seatNumber || idx + 1
-            }));
-          }
-          if (payload.scenarioId) copy.scenarioId = payload.scenarioId as string;
-          copy.phase = (payload.phase as GamePhase) || 'LOBBY';
-          copy.dayNumber = 1;
-          copy.accusations = [];
-          copy.nightActions = [];
-          copy.votes = [];
-          copy.winner = null;
-        } else if (actionType === 'UPDATE_PLAYERS') {
-          if (Array.isArray(payload.players)) {
-            copy.players = payload.players as Player[];
-          }
-        } else if (actionType === 'UPDATE_HOUSE_RULES') {
-          copy.houseRules = payload.rules as any;
-        } else if (actionType === 'PUBLISH_CHRONICLE') {
-          copy.morningChronicle = payload.text as string;
-        } else if (actionType === 'DEAL_ROLES') {
-          const deck = ((copy as any).deckRoles || []) as DeckRoleItem[];
-          const baseRoles: RoleId[] = deck.length > 0 
-            ? deck.map(d => d.roleId)
-            : (DEFAULT_SCENARIOS.find(s => s.id === copy.scenarioId)?.roles || ['GODFATHER', 'DOCTOR_LECTER', 'MAFIA_SIMPLE', 'DOCTOR', 'DETECTIVE', 'SNIPER', 'ARMORED', 'CITIZEN_SIMPLE', 'CITIZEN_SIMPLE', 'CITIZEN_SIMPLE']);
-
-          // Dynamically balance roles to the exact player count (odd or even, e.g. 7, 9, 11)
-          const balancedRoles = balanceScenarioRoles(baseRoles, copy.players.length, copy.scenarioId);
-          const shuffledRoles = [...balancedRoles].sort(() => Math.random() - 0.5);
-          copy.players = copy.players.map((p, idx) => ({
-            ...p,
-            role: shuffledRoles[idx] || p.role || 'CITIZEN_SIMPLE',
-            roleRevealedAndConfirmed: false
-          }));
-        } else if (actionType === 'RESOLVE_VOTING_TIE') {
-          const resolution = payload.resolution as string;
-          const candidateIds = (payload.candidateIds as string[]) || [];
-          const candidates = copy.players.filter(p => candidateIds.includes(p.id));
-
-          if (resolution === 'REVOTE') {
-            copy.votes = [];
-            if ((copy as any).votingState) {
-              (copy as any).votingState.votes = {};
-              (copy as any).votingState.manualCount = 0;
-              (copy as any).votingState.defenseCandidates = candidateIds;
-              (copy as any).votingState.stage = 'EXIT_VOTE';
-            }
-          } else if (resolution === 'NO_ELIMINATION') {
-            copy.activeDefensePlayers = [];
-            copy.players.forEach(p => {
-              if (candidateIds.includes(p.id)) p.inDefense = false;
-            });
-            if ((copy as any).votingState) {
-              (copy as any).votingState.isOpen = false;
-            }
-          } else if (resolution === 'RANDOM_DRAW') {
-            if (candidates.length > 0) {
-              const unlucky = candidates[Math.floor(Math.random() * candidates.length)];
-              unlucky.isAlive = false;
-              unlucky.inDefense = false;
-            }
-          } else if (resolution === 'ELIMINATE_BOTH') {
-            candidates.forEach(c => {
-              c.isAlive = false;
-              c.inDefense = false;
-            });
-          }
-        } else if (actionType === 'REVEAL_AND_CONFIRM_ROLE') {
-          const p = copy.players.find(x => x.id === payload.playerId);
-          if (p) p.roleRevealedAndConfirmed = true;
-        } else if (actionType === 'CONVERT_TO_BOT') {
-          const p = copy.players.find(x => x.id === payload.playerId);
-          if (p) {
-            p.isBot = true;
-            if (!p.name.includes('🤖')) {
-              p.name = `🤖 ${p.name}`;
-            }
-          }
-        }
-
-        copy.updatedAt = Date.now();
-        return copy;
-      });
+      console.warn('Backend action request failed, applying local state:', err);
+      applyLocally();
     }
-  }, [room]);
+  }, [room, language]);
 
   // Join Room Handler for Mobile Player
   const handleJoinRoom = async (roomIdToJoin: string, playerName: string, avatar: string, token?: string) => {
@@ -583,9 +450,11 @@ export default function App() {
     const newJoinToken = Math.random().toString(36).substring(2, 8);
     const newHostToken = 'host_' + Date.now();
 
+    // Shuffle the deck before seating it: without this, seat 1 always received the first card (the Godfather).
+    const dealtDeck = shuffle(params.deckRoles);
     const newPlayers: Player[] = Array.from({ length: params.totalSeats }).map((_, idx) => {
       const name = params.prefilledNames[idx] || `${language === 'en' ? 'Player' : 'بازیکن'} ${idx + 1}`;
-      const roleItem = params.deckRoles[idx];
+      const roleItem = dealtDeck[idx];
       return {
         id: `p_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
         name,
@@ -982,8 +851,8 @@ export default function App() {
             onRevivePlayer={(playerId) => dispatchAction('REVIVE_PLAYER', { playerId })}
             onSendToDefense={(playerId) => dispatchAction('SEND_TO_DEFENSE', { playerId })}
             onAddAccusation={(accuserId, targetId) => dispatchAction('ADD_ACCUSATION', { accuserId, targetId })}
-            onResolveNight={(deadPlayerIds, mutedPlayerId, narrative) => 
-              dispatchAction('RESOLVE_NIGHT', { deadPlayerIds, mutedPlayerId, narrative })
+            onResolveNight={(deadPlayerIds, mutedPlayerId, narrative, brokenShieldPlayerIds) => 
+              dispatchAction('RESOLVE_NIGHT', { deadPlayerIds, mutedPlayerId, narrative, brokenShieldPlayerIds })
             }
             onPublishChronicle={(text) => dispatchAction('PUBLISH_CHRONICLE', { text })}
             onEliminatePlayer={(playerId) => dispatchAction('ELIMINATE_PLAYER', { playerId })}
@@ -998,7 +867,7 @@ export default function App() {
               room={room}
               currentPlayer={currentPlayer}
               onSendAccusation={(targetId) => dispatchAction('ADD_ACCUSATION', { accuserId: currentPlayer.id, targetId })}
-              onVote={(targetPlayerId, voteValue) => dispatchAction('SUBMIT_VOTE', { targetPlayerId, voteValue })}
+              onVote={(targetPlayerId, voteValue) => dispatchAction('SUBMIT_VOTE', { targetPlayerId, voteValue, voterId: currentPlayer?.id })}
               language={language}
             />
           ) : (
@@ -1037,8 +906,8 @@ export default function App() {
             onRevivePlayer={(playerId) => dispatchAction('REVIVE_PLAYER', { playerId })}
             onSendToDefense={(playerId) => dispatchAction('SEND_TO_DEFENSE', { playerId })}
             onAddAccusation={(accuserId, targetId) => dispatchAction('ADD_ACCUSATION', { accuserId, targetId })}
-            onResolveNight={(deadPlayerIds, mutedPlayerId, narrative) => 
-              dispatchAction('RESOLVE_NIGHT', { deadPlayerIds, mutedPlayerId, narrative })
+            onResolveNight={(deadPlayerIds, mutedPlayerId, narrative, brokenShieldPlayerIds) => 
+              dispatchAction('RESOLVE_NIGHT', { deadPlayerIds, mutedPlayerId, narrative, brokenShieldPlayerIds })
             }
             onPublishChronicle={(text) => dispatchAction('PUBLISH_CHRONICLE', { text })}
             onEliminatePlayer={(playerId) => dispatchAction('ELIMINATE_PLAYER', { playerId })}
@@ -1047,7 +916,7 @@ export default function App() {
             onAddPlayer={(name, seatNumber, role) => {
               dispatchAction('ADD_MANUAL_PLAYER', { name, seatNumber, role });
             }}
-            onVote={(targetPlayerId, voteValue) => dispatchAction('SUBMIT_VOTE', { targetPlayerId, voteValue })}
+            onVote={(targetPlayerId, voteValue) => dispatchAction('SUBMIT_VOTE', { targetPlayerId, voteValue, voterId: currentPlayer?.id })}
             onResolveTie={(resolution, candidateIds) => dispatchAction('RESOLVE_VOTING_TIE', { resolution, candidateIds })}
             language={language}
           />

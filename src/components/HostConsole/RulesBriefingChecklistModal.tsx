@@ -4,6 +4,7 @@ import {
   Sparkles, Moon, ArrowLeft, ArrowRight, Play, Volume2
 } from 'lucide-react';
 import { RoomState, Language, RoleId } from '../../types/mafia';
+import { getLocalizedRoleName } from '../../utils/scenarioLocalization';
 import { ROLE_DEFINITIONS } from '../../utils/scenarios';
 import { soundEngine } from '../../utils/audioSynth';
 
@@ -188,7 +189,7 @@ export const RulesBriefingChecklistModal: React.FC<RulesBriefingChecklistProps> 
                         : 'bg-emerald-950/40 text-emerald-300 border-emerald-500/30'
                     }`}
                   >
-                    {def?.nameKey?.replace('role_', '') || d.roleId}
+                    {getLocalizedRoleName(d.roleId, language)}
                   </span>
                 );
               })}
@@ -250,7 +251,7 @@ export const RulesBriefingChecklistModal: React.FC<RulesBriefingChecklistProps> 
                 <span>
                   نقش‌های زیر از شب اول بیدار شده و اکشن ثبت می‌کنند:{' '}
                   <span className="text-amber-300 font-bold">
-                    {firstNightRoles.map(r => ROLE_DEFINITIONS[r]?.nameKey?.replace('role_', '') || r).join('، ')}
+                    {firstNightRoles.map(r => getLocalizedRoleName(r, language)).join('، ')}
                   </span>
                   . بقیه نقش‌ها از شب دوم فعال می‌شوند.
                 </span>

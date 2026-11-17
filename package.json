@@ -10,7 +10,8 @@
     "build:pages": "BASE_PATH=/mafia/ VITE_STATIC_HOSTING=true vite build --outDir dist-pages",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "tsx --test src/engine/*.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

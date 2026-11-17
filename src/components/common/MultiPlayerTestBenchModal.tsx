@@ -5,6 +5,7 @@ import {
   X, Check, RefreshCw, Cpu, Layers, Award, BarChart3, FastForward
 } from 'lucide-react';
 import { Player, RoleId, RoomState, Language } from '../../types/mafia';
+import { getLocalizedRoleName } from '../../utils/scenarioLocalization';
 import { ROLE_DEFINITIONS } from '../../utils/scenarios';
 import { generateBalancedRoles, generateBotPlayers, runSimulationTest, TestSuiteReport } from '../../utils/testSimulator';
 import { soundEngine } from '../../utils/audioSynth';
@@ -239,7 +240,7 @@ export const MultiPlayerTestBenchModal: React.FC<MultiPlayerTestBenchModalProps>
                         }`}
                       >
                         <span className="text-xs font-mono text-slate-400">#{idx + 1}</span>
-                        <span>{def.nameKey.replace('role_', '')}</span>
+                        <span>{getLocalizedRoleName(roleId, language)}</span>
                       </div>
                     );
                   })}
