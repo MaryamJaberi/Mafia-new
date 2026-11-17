@@ -609,7 +609,7 @@ Please analyze this deck as a professional Mafia tournament referee in 2 to 3 co
               value={aiQuestion}
               onChange={(e) => setAiQuestion(e.target.value)}
               placeholder={isEn ? "Ask AI advisor about role combinations & balance..." : "سؤال خود را درباره تعادل نقش‌ها بنویسید..."}
-              className="flex-1 p-3 rounded-2xl bg-black/50 border border-white/10 text-xs text-slate-200 focus:outline-none focus:border-amber-500/60"
+              className="flex-1 min-w-0 p-3 rounded-2xl bg-black/50 border border-white/10 text-xs text-slate-200 focus:outline-none focus:border-amber-500/60"
             />
             <button
               onClick={handleAskAiBalance}
