@@ -100,10 +100,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <h1 className="text-xs sm:text-sm font-black tracking-tight text-white truncate">
-                {isEn ? 'Mafia OS' : 'سیستم‌عامل مافیا'}
+              <h1 className="text-xs sm:text-sm font-black tracking-tight text-white whitespace-nowrap">
+                {/* on phones the controls leave little room: show the short name instead of a cut-off long one */}
+                <span className="sm:hidden">{isEn ? 'Mafia' : 'مافیا'}</span>
+                <span className="hidden sm:inline">{isEn ? 'Mafia OS' : 'سیستم‌عامل مافیا'}</span>
               </h1>
-              <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30 shrink-0">
+              <span className="hidden sm:inline text-[9px] uppercase font-mono px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30 shrink-0">
                 PRO ✨
               </span>
             </div>
