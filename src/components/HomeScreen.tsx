@@ -2,11 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Crown, Smartphone, BookOpen, Globe, ArrowLeft, ArrowRight,
   Shield, Users, Sparkles, Check, QrCode, Play, Video, Cloud,
-  Search, Bot, Sliders, Volume2, VolumeX, CheckCircle2, ChevronDown, Radio
+  Search, Bot, Sliders, Volume2, VolumeX, CheckCircle2, ChevronDown, Radio,
+  Trash2, Lock, ShieldAlert, FileText, CheckSquare, Activity, AlertTriangle, KeyRound, Terminal
 } from 'lucide-react';
 import { Language, RoomState } from '../types/mafia';
 import { soundEngine } from '../utils/audioSynth';
 import { auth, onAuthStateChanged, User as FirebaseUser } from '../lib/firebase';
+import { isSuperAdmin, SUPER_ADMIN_EMAIL } from '../utils/authPermissions';
 
 interface HomeScreenProps {
   onOpenCreateGame: () => void;
@@ -24,6 +26,11 @@ interface HomeScreenProps {
   onSelectLanguage: (lang: Language) => void;
   activeRoom?: RoomState | null;
   onReturnToActiveRoom?: () => void;
+  onDeleteActiveRoom?: () => void;
+  onOpenAutomatedQA?: () => void;
+  onOpenFullGameReport?: () => void;
+  onOpenTestBench?: () => void;
+  onOpenUserStories?: () => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -41,7 +48,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   language,
   onSelectLanguage,
   activeRoom,
-  onReturnToActiveRoom
+  onReturnToActiveRoom,
+  onDeleteActiveRoom,
+  onOpenAutomatedQA,
+  onOpenFullGameReport,
+  onOpenTestBench,
+  onOpenUserStories
 }) => {
   const isEn = language === 'en';
   const isRtl = language !== 'en';
@@ -49,6 +61,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   // Single-Icon Language Selector State & Ref
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const langMenuRef = useRef<HTMLDivElement>(null);
 
   // User auth state for Google Play & Cloud profile
@@ -100,12 +113,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <h1 className="text-xs sm:text-sm font-black tracking-tight text-white whitespace-nowrap">
-                {/* on phones the controls leave little room: show the short name instead of a cut-off long one */}
-                <span className="sm:hidden">{isEn ? 'Mafia' : 'مافیا'}</span>
-                <span className="hidden sm:inline">{isEn ? 'Mafia OS' : 'سیستم‌عامل مافیا'}</span>
+              <h1 className="text-xs sm:text-sm font-black tracking-tight text-white truncate">
+                {isEn ? 'Mafia OS' : 'سیستم‌عامل مافیا'}
               </h1>
-              <span className="hidden sm:inline text-[9px] uppercase font-mono px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30 shrink-0">
+              <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-extrabold border border-amber-500/30 shrink-0">
                 PRO ✨
               </span>
             </div>
@@ -241,48 +252,73 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       {/* 2. Main Content Container */}
       <main className="max-w-5xl mx-auto w-full my-auto py-3 sm:py-5 space-y-4 sm:space-y-5">
         
-        {/* Playful Minimal Hero Greeting */}
+        {/* Secret Agent & Mafia Presence Hero Dossier Header */}
         <div className="text-center pt-1 pb-1 space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.04] border border-white/10 text-xs font-semibold text-amber-300 shadow-sm">
-            <span className="text-sm">🍿</span>
-            <span>{isEn ? 'Smart Mafia Game Night OS' : 'دورهمی هوشمند و حرفه‌ای مافیا'}</span>
-            <span className="text-slate-600">·</span>
-            <span className="text-slate-400">{isEn ? 'Minimal & Fast' : 'ساده، باحال و بی‌نقص ✨'}</span>
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-black/60 border border-amber-500/30 text-xs font-mono font-bold text-amber-300 shadow-lg shadow-amber-500/5">
+            <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+            <span className="tracking-wider uppercase">DOSSIER REF # 007-MAFIA-OS // CLASSIFIED OPERATIONS</span>
           </div>
-          <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight">
-            {isEn ? 'Run Flawless Mafia Nights 🎭' : 'بازی مافیا؛ فوق‌العاده باحال و روون 🎭'}
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight flex items-center justify-center gap-2">
+            <span>{isEn ? 'Classified Mafia Syndicate OS' : 'کنسول محرمانه داوری و عملیات مافیا'}</span>
+            <span className="text-amber-400 text-2xl sm:text-3xl">🕵️‍♂️</span>
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 max-w-lg mx-auto leading-relaxed">
+          <p className="text-xs sm:text-sm text-slate-400 max-w-xl mx-auto leading-relaxed">
             {isEn
-              ? 'Smart referee console, instant QR sync for players, anti-peeking secret cards, and live voting.'
-              : 'کنسول همه‌کاره گرداننده، کارت‌های محرمانه با قفل ضددید روی گوشی بازیکنان، و رأی‌گیری همگام.'}
+              ? 'Tactical referee console, anti-surveillance privacy cards for players, real-time encrypted voting, and live dossier sync.'
+              : 'کنسول همه‌کاره گرداننده، کارت‌های محرمانه با قفل ضددید روی گوشی بازیکنان، رأی‌گیری آنلاین و اتاق پرونده‌های سری.'}
           </p>
         </div>
 
-        {/* Active Game Alert Banner (Ultra-compact 1-line bar) */}
+        {/* Active Game Alert Banner with Terminate & Delete Option */}
         {activeRoom && onReturnToActiveRoom && (
-          <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent border border-amber-500/30 flex items-center justify-between gap-3 shadow-lg shadow-amber-500/5 animate-in fade-in">
+          <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-black/40 to-rose-500/15 border border-amber-500/30 flex flex-wrap items-center justify-between gap-3 shadow-lg shadow-amber-500/5 animate-in fade-in">
             <div className="flex items-center gap-2.5 min-w-0">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0" />
               <div className="min-w-0">
-                <div className="text-xs font-black text-amber-300 truncate">
-                  {isEn ? 'Match in Progress' : 'مسابقه فعال در حافظه'}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-amber-300 truncate">
+                    {isEn ? 'Active Game in Progress' : 'مسابقه فعال در حال اجرا'}
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono border border-rose-500/30">
+                    LIVE
+                  </span>
                 </div>
                 <div className="text-[11px] text-slate-300 font-mono truncate">
-                  {isEn ? `Room: ${activeRoom.roomId} • Phase: ${activeRoom.phase}` : `اتاق: ${activeRoom.roomId} • فاز: ${activeRoom.phase}`}
+                  {isEn ? `Room: ${activeRoom.roomId} • Phase: ${activeRoom.phase} • Day ${activeRoom.dayNumber}` : `کد اتاق: ${activeRoom.roomId} • فاز: ${activeRoom.phase} • روز ${activeRoom.dayNumber}`}
                 </div>
               </div>
             </div>
-            <button
-              onClick={() => {
-                soundEngine.playGong();
-                onReturnToActiveRoom();
-              }}
-              className="shrink-0 px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all active:scale-95"
-            >
-              <span>{isEn ? 'Return to Room' : 'بازگشت به بازی'}</span>
-              <Arrow className="w-3.5 h-3.5" />
-            </button>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Delete / Terminate Running Game Button */}
+              {onDeleteActiveRoom && (
+                <button
+                  id="btn-delete-active-game"
+                  onClick={() => {
+                    soundEngine.playTick();
+                    setShowDeleteConfirm(true);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-rose-950/50 hover:bg-rose-900/80 text-rose-300 hover:text-white border border-rose-500/40 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-sm"
+                  title={isEn ? 'Terminate & Delete Running Game' : 'حذف و ابطال مسابقه در حال اجرا'}
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                  <span>{isEn ? 'Delete Game' : 'حذف مسابقه'}</span>
+                </button>
+              )}
+
+              {/* Return to Room Button */}
+              <button
+                id="btn-return-active-room"
+                onClick={() => {
+                  soundEngine.playGong();
+                  onReturnToActiveRoom();
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer transition-all active:scale-95"
+              >
+                <span>{isEn ? 'Return to Room' : 'بازگشت به بازی'}</span>
+                <Arrow className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         )}
 
@@ -532,7 +568,154 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </div>
 
-        {/* 4. Feature Highlights (Clean unboxed text metadata with separators) */}
+        {/* 4. Exclusive Super Admin & Game Content / Test Results Panel (Revealed ONLY to m.jaberi1212@gmail.com) */}
+        {authUser && isSuperAdmin(authUser) && (
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-br from-[#0e121e] via-[#090c14] to-[#07090f] border-2 border-amber-500/30 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent" />
+            
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0 shadow-inner text-xl">
+                  🕵️‍♂️
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-black text-white">
+                      {isEn ? 'Classified Super Admin & Content Management Center' : 'کنسول اختصاصی مدیر کل • مدیریت محتوا و آزمون‌ها'}
+                    </h3>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono font-bold">
+                      CLEARANCE 5
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-400/90 mt-0.5 font-mono">
+                    {isEn ? `Welcome back, ${authUser.email}` : `خوش آمدید، ${authUser.email}`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold font-mono">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span>AUTHORIZED: JABERI</span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="text-xs text-emerald-400 font-bold flex items-center gap-1.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{isEn ? 'Super Admin Clearance active. Full test results and game content management unlocked:' : 'دسترسی اختصاصی اکانت شما فعال شد. مشاهده نتایج تست‌ها و مدیریت محتوای بازی:'}</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                {/* 1. Automated QA */}
+                <button
+                  id="btn-admin-qa-suite"
+                  onClick={() => {
+                    soundEngine.playTick();
+                    if (onOpenAutomatedQA) onOpenAutomatedQA();
+                  }}
+                  className="p-3 rounded-2xl bg-black/40 hover:bg-amber-500/10 border border-white/10 hover:border-amber-500/40 text-right transition-all flex flex-col justify-between gap-2 group cursor-pointer active:scale-95"
+                  dir={isRtl ? 'rtl' : 'ltr'}
+                >
+                  <Activity className="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform" />
+                  <div>
+                    <div className="text-xs font-black text-white group-hover:text-amber-300 truncate">
+                      {isEn ? 'Automated QA' : 'آزمون‌های خودکار QA'}
+                    </div>
+                    <div className="text-[10px] text-slate-400 truncate">
+                      {isEn ? 'Full Test Suite' : 'تست جامع ۱۰۰ سناریو'}
+                    </div>
+                  </div>
+                </button>
+
+                {/* 2. Full Game Test Report */}
+                <button
+                  id="btn-admin-full-report"
+                  onClick={() => {
+                    soundEngine.playTick();
+                    if (onOpenFullGameReport) onOpenFullGameReport();
+                  }}
+                  className="p-3 rounded-2xl bg-black/40 hover:bg-emerald-500/10 border border-white/10 hover:border-emerald-500/40 text-right transition-all flex flex-col justify-between gap-2 group cursor-pointer active:scale-95"
+                  dir={isRtl ? 'rtl' : 'ltr'}
+                >
+                  <FileText className="w-5 h-5 text-emerald-400 group-hover:scale-110 transition-transform" />
+                  <div>
+                    <div className="text-xs font-black text-white group-hover:text-emerald-300 truncate">
+                      {isEn ? 'Full Test Report' : 'گزارش تست ۱۸ نفره'}
+                    </div>
+                    <div className="text-[10px] text-slate-400 truncate">
+                      {isEn ? 'Simulation logs' : 'لاگ و جدول رویدادها'}
+                    </div>
+                  </div>
+                </button>
+
+                {/* 3. Multiplayer Test Bench */}
+                <button
+                  id="btn-admin-test-bench"
+                  onClick={() => {
+                    soundEngine.playTick();
+                    if (onOpenTestBench) onOpenTestBench();
+                  }}
+                  className="p-3 rounded-2xl bg-black/40 hover:bg-cyan-500/10 border border-white/10 hover:border-cyan-500/40 text-right transition-all flex flex-col justify-between gap-2 group cursor-pointer active:scale-95"
+                  dir={isRtl ? 'rtl' : 'ltr'}
+                >
+                  <Terminal className="w-5 h-5 text-cyan-400 group-hover:scale-110 transition-transform" />
+                  <div>
+                    <div className="text-xs font-black text-white group-hover:text-cyan-300 truncate">
+                      {isEn ? 'Test Bench' : 'میز تست و بات‌ها'}
+                    </div>
+                    <div className="text-[10px] text-slate-400 truncate">
+                      {isEn ? 'Multiplayer bots' : 'شبیه‌سازی چندنفره'}
+                    </div>
+                  </div>
+                </button>
+
+                {/* 4. User Stories */}
+                <button
+                  id="btn-admin-user-stories"
+                  onClick={() => {
+                    soundEngine.playTick();
+                    if (onOpenUserStories) onOpenUserStories();
+                  }}
+                  className="p-3 rounded-2xl bg-black/40 hover:bg-indigo-500/10 border border-white/10 hover:border-indigo-500/40 text-right transition-all flex flex-col justify-between gap-2 group cursor-pointer active:scale-95"
+                  dir={isRtl ? 'rtl' : 'ltr'}
+                >
+                  <CheckSquare className="w-5 h-5 text-indigo-400 group-hover:scale-110 transition-transform" />
+                  <div>
+                    <div className="text-xs font-black text-white group-hover:text-indigo-300 truncate">
+                      {isEn ? 'User Stories' : 'داستان‌های کاربری'}
+                    </div>
+                    <div className="text-[10px] text-slate-400 truncate">
+                      {isEn ? 'Feature Checklist' : 'چک‌لیست فیچرها'}
+                    </div>
+                  </div>
+                </button>
+
+                {/* 5. AI Scenario & Content Architect */}
+                <button
+                  id="btn-admin-ai-scenario"
+                  onClick={() => {
+                    soundEngine.playTick();
+                    if (onOpenAiScenarioBuilder) onOpenAiScenarioBuilder();
+                  }}
+                  className="p-3 rounded-2xl bg-black/40 hover:bg-purple-500/10 border border-white/10 hover:border-purple-500/40 text-right transition-all flex flex-col justify-between gap-2 group cursor-pointer active:scale-95"
+                  dir={isRtl ? 'rtl' : 'ltr'}
+                >
+                  <Bot className="w-5 h-5 text-purple-400 group-hover:scale-110 transition-transform" />
+                  <div>
+                    <div className="text-xs font-black text-white group-hover:text-purple-300 truncate">
+                      {isEn ? 'AI Content Architect' : 'مدیریت محتوای سناریو'}
+                    </div>
+                    <div className="text-[10px] text-slate-400 truncate">
+                      {isEn ? 'Scenario builder' : 'طراحی سناریو با Gemini'}
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 5. Feature Highlights (Clean unboxed text metadata with separators) */}
         <div className="py-2.5 px-4 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-wrap items-center justify-center sm:justify-between gap-3 text-[11px] text-slate-400 font-medium">
           <div className="flex items-center gap-1.5">
             <span className="text-sm">🕶️</span>
@@ -552,7 +735,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
       </main>
 
-      {/* 5. Minimalist Footer */}
+      {/* 6. Minimalist Footer */}
       <footer className="max-w-5xl mx-auto w-full py-2.5 text-center border-t border-white/5 text-[11px] text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-1.5 shrink-0">
         <span>
           {isEn 
@@ -567,6 +750,52 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <span>v2.5.0</span>
         </div>
       </footer>
+
+      {/* Delete / Terminate Running Game Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="relative w-full max-w-md bg-[#0a0c14] border-2 border-rose-500/50 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-rose-950/70 overflow-hidden text-right" dir={isRtl ? 'rtl' : 'ltr'}>
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-rose-500 to-transparent" />
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
+                <Trash2 className="w-6 h-6 animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-white">
+                  {isEn ? 'Terminate & Delete Running Game?' : 'ابطال و حذف مسابقه در حال اجرا؟'}
+                </h3>
+                <p className="text-xs text-rose-400/90 font-mono font-bold mt-1">
+                  {isEn ? `Room: ${activeRoom?.roomId}` : `کد اتاق: ${activeRoom?.roomId}`}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed mb-6 bg-white/[0.03] p-3.5 rounded-2xl border border-white/5">
+              {isEn 
+                ? 'Are you sure you want to terminate and delete this ongoing match? All player connections, assigned secret roles, and live states will be completely purged from server memory.'
+                : 'آیا از حذف و ابطال کامل این مسابقه در حال اجرا اطمینان دارید؟ تمام اتصال‌های بازیکنان، نقش‌های محرمانه تخصیص‌داده‌شده و وضعیت‌های فعال به صورت کامل از حافظه سرور پاک خواهند شد.'}
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                id="btn-confirm-delete-game"
+                onClick={() => {
+                  soundEngine.playGong();
+                  setShowDeleteConfirm(false);
+                  if (onDeleteActiveRoom) onDeleteActiveRoom();
+                }}
+                className="flex-1 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs transition-all shadow-lg shadow-rose-950/50 cursor-pointer active:scale-95"
+              >
+                {isEn ? 'Yes, Terminate & Delete' : 'تأیید و حذف قطعی مسابقه'}
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="py-3 px-5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white font-bold text-xs transition-all cursor-pointer"
+              >
+                {isEn ? 'Cancel' : 'انصراف'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

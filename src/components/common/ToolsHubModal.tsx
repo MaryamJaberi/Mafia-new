@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, Sparkles, Layers, Brain, BookOpen, Bot, Cloud, Video,
   Search, Sliders, Music, History, CheckSquare, Bug, Award,
-  ChevronRight, ArrowRightLeft, Shield, Users, HelpCircle
+  ChevronRight, ArrowRightLeft, Shield, Users, HelpCircle, Activity, FileText
 } from 'lucide-react';
 import { Language } from '../../types/mafia';
 import { translations } from '../../utils/translations';
 import { soundEngine } from '../../utils/audioSynth';
+import { auth, onAuthStateChanged } from '../../lib/firebase';
+import { isSuperAdmin } from '../../utils/authPermissions';
 
 interface ToolsHubModalProps {
   isOpen: boolean;
@@ -54,8 +56,16 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
   onOpenFullGameReport
 }) => {
   const [activeCategory, setActiveCategory] = useState<'SCENARIOS' | 'AI_LIVE' | 'MODERATOR'>('SCENARIOS');
+  const [currentUser, setCurrentUser] = useState(auth.currentUser);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => setCurrentUser(u));
+    return () => unsub();
+  }, []);
+
   const t = translations[language] || translations.fa;
   const isRtl = language !== 'en';
+  const isAuthorizedAdmin = isSuperAdmin(currentUser);
 
   if (!isOpen) return null;
 
@@ -211,20 +221,25 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
                 </div>
               )}
 
-              {/* AI Scenario Designer */}
-              {onOpenAiScenarioBuilder && (
+              {/* AI Scenario Designer (Game Content Management - Revealed ONLY to m.jaberi1212@gmail.com) */}
+              {isAuthorizedAdmin && onOpenAiScenarioBuilder && (
                 <div 
                   onClick={() => handleAction(onOpenAiScenarioBuilder)}
-                  className="p-4 rounded-2xl bg-[#131926] border border-purple-500/20 hover:border-purple-500/50 transition-all cursor-pointer group shadow-lg flex flex-col justify-between"
+                  className="p-4 rounded-2xl bg-gradient-to-br from-[#1b122c] to-[#0f0a1a] border border-purple-500/40 hover:border-purple-400 transition-all cursor-pointer group shadow-lg flex flex-col justify-between"
                 >
                   <div className="flex items-start gap-3">
                     <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-300 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                       <Brain className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-white group-hover:text-purple-300 transition-colors">
-                        {language === 'en' ? 'AI Scenario Architect' : 'معمار سناریو با هوش مصنوعی'}
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-white group-hover:text-purple-300 transition-colors">
+                          {language === 'en' ? 'AI Scenario Architect' : 'معمار سناریو با هوش مصنوعی'}
+                        </h3>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold border border-emerald-500/30">
+                          CLEARANCE 5
+                        </span>
+                      </div>
                       <p className="text-xs text-slate-400 mt-1 leading-relaxed">
                         {language === 'en'
                           ? 'Generate perfectly balanced custom scenarios based on player count and desired complexity via Gemini.'
@@ -480,8 +495,8 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
                 </div>
               )}
 
-              {/* User Stories & QA Suite */}
-              {onOpenUserStories && (
+              {/* User Stories & QA Suite (Test Results - Revealed ONLY to m.jaberi1212@gmail.com) */}
+              {isAuthorizedAdmin && onOpenUserStories && (
                 <div 
                   onClick={() => handleAction(onOpenUserStories)}
                   className="p-4 rounded-2xl bg-[#131926] border border-white/10 hover:border-amber-500/40 transition-all cursor-pointer group shadow-lg flex flex-col justify-between"
@@ -491,9 +506,14 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
                       <CheckSquare className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors">
-                        {language === 'en' ? 'User Stories & Test Scenarios' : 'داستان‌های کاربری و تست سناریوها'}
-                      </h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors">
+                          {language === 'en' ? 'User Stories & Test Scenarios' : 'داستان‌های کاربری و تست سناریوها'}
+                        </h3>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold border border-emerald-500/30">
+                          CLEARANCE 5
+                        </span>
+                      </div>
                       <p className="text-xs text-slate-400 mt-1 leading-relaxed">
                         {language === 'en'
                           ? 'Interactive test scenarios covering all player flows, voting mechanics, and edge case validations.'
@@ -503,6 +523,72 @@ export const ToolsHubModal: React.FC<ToolsHubModalProps> = ({
                   </div>
                   <div className="mt-3 flex items-center justify-between pt-2 border-t border-white/5 text-[11px] text-amber-400 font-bold">
                     <span>{language === 'en' ? 'Open Test Suite' : 'ورود به بخش تست'}</span>
+                    <span>→</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Automated QA Suite (Test Results - Revealed ONLY to m.jaberi1212@gmail.com) */}
+              {isAuthorizedAdmin && onOpenAutomatedQA && (
+                <div 
+                  onClick={() => handleAction(onOpenAutomatedQA)}
+                  className="p-4 rounded-2xl bg-[#131926] border border-amber-500/20 hover:border-amber-500/50 transition-all cursor-pointer group shadow-lg flex flex-col justify-between"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/15 text-amber-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <Activity className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors">
+                          {language === 'en' ? 'Automated QA Suite' : 'آزمون‌های خودکار QA'}
+                        </h3>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold border border-emerald-500/30">
+                          CLEARANCE 5
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                        {language === 'en'
+                          ? 'Run 100 comprehensive simulated matches, stress-test role balance, voting ties, and night phases.'
+                          : 'اجرای ۱۰۰ شبیه‌سازی کامل، آزمون تعادل نقش‌ها، سناریوهای تساوی آرا و فاز شب.'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between pt-2 border-t border-white/5 text-[11px] text-amber-400 font-bold">
+                    <span>{language === 'en' ? 'Run QA Engine' : 'اجرای آزمون خودکار'}</span>
+                    <span>→</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Full Game Test Report (Test Results - Revealed ONLY to m.jaberi1212@gmail.com) */}
+              {isAuthorizedAdmin && onOpenFullGameReport && (
+                <div 
+                  onClick={() => handleAction(onOpenFullGameReport)}
+                  className="p-4 rounded-2xl bg-[#131926] border border-emerald-500/20 hover:border-emerald-500/50 transition-all cursor-pointer group shadow-lg flex flex-col justify-between"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">
+                          {language === 'en' ? 'Full Game Test Report' : 'گزارش و لاگ تست بازی'}
+                        </h3>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono font-bold border border-emerald-500/30">
+                          CLEARANCE 5
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                        {language === 'en'
+                          ? 'Detailed tournament dossier with timeline, night matrix, player statistics, and printable certificate.'
+                          : 'پرونده تفصیلی مسابقه به همراه ماتریس شب، جدول اتهامات، آمار بازیکنان و نسخه چاپی.'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between pt-2 border-t border-white/5 text-[11px] text-emerald-400 font-bold">
+                    <span>{language === 'en' ? 'View Test Dossier' : 'مشاهده پرونده تست'}</span>
                     <span>→</span>
                   </div>
                 </div>

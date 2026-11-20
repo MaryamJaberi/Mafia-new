@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   User, LogIn, LogOut, ShieldCheck, Database, Cloud, CheckCircle2, 
-  Sparkles, History, BookmarkPlus, Loader2 
+  Sparkles, History, BookmarkPlus, Loader2, Activity, FileText, Terminal, CheckSquare, Bot 
 } from 'lucide-react';
 import { 
   auth, 
@@ -19,19 +19,30 @@ import {
   where 
 } from '../../lib/firebase';
 import type { User as FirebaseUser } from '../../lib/firebase';
+import { isSuperAdmin } from '../../utils/authPermissions';
 
 interface AuthProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
   language?: string;
   activeRoomId?: string;
+  onOpenAutomatedQA?: () => void;
+  onOpenFullGameReport?: () => void;
+  onOpenTestBench?: () => void;
+  onOpenUserStories?: () => void;
+  onOpenAiScenarioBuilder?: () => void;
 }
 
 export const AuthProfileModal: React.FC<AuthProfileModalProps> = ({
   isOpen,
   onClose,
   language = 'fa',
-  activeRoomId
+  activeRoomId,
+  onOpenAutomatedQA,
+  onOpenFullGameReport,
+  onOpenTestBench,
+  onOpenUserStories,
+  onOpenAiScenarioBuilder
 }) => {
   const isEn = language === 'en';
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -206,6 +217,93 @@ export const AuthProfileModal: React.FC<AuthProfileModalProps> = ({
                 </div>
               </div>
             </div>
+
+            {/* Exclusive Super Admin Command Dock (m.jaberi1212@gmail.com) */}
+            {isSuperAdmin(user) && (
+              <div className="p-3.5 rounded-2xl bg-gradient-to-br from-[#121726] via-[#090d18] to-black border border-amber-500/40 shadow-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🕵️‍♂️</span>
+                    <span className="text-xs font-black text-amber-300">
+                      {isEn ? 'Super Admin Clearance (Level 5)' : 'دسترسی اختصاصی مدیر کل سیستم (سطح ۵)'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-mono font-bold border border-amber-500/30">
+                    JABERI ONLY
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  {isEn 
+                    ? 'Exclusive access to automated QA suites, test reports, and game content management tools:'
+                    : 'امکانات و ابزارهای محرمانه این حساب (آزمون‌های خودکار، نتایج تست و معمار سناریو):'}
+                </p>
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  {onOpenAutomatedQA && (
+                    <button
+                      onClick={() => {
+                        onClose();
+                        onOpenAutomatedQA();
+                      }}
+                      className="p-2.5 rounded-xl bg-white/5 hover:bg-amber-500/15 border border-white/10 hover:border-amber-500/30 text-right text-xs font-bold text-amber-300 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                    >
+                      <Activity className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span className="truncate">{isEn ? 'Automated QA' : 'آزمون‌های خودکار QA'}</span>
+                    </button>
+                  )}
+                  {onOpenFullGameReport && (
+                    <button
+                      onClick={() => {
+                        onClose();
+                        onOpenFullGameReport();
+                      }}
+                      className="p-2.5 rounded-xl bg-white/5 hover:bg-emerald-500/15 border border-white/10 hover:border-emerald-500/30 text-right text-xs font-bold text-emerald-300 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                    >
+                      <FileText className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span className="truncate">{isEn ? 'Full Test Report' : 'گزارش تست ۱۸ نفره'}</span>
+                    </button>
+                  )}
+                  {onOpenTestBench && (
+                    <button
+                      onClick={() => {
+                        onClose();
+                        onOpenTestBench();
+                      }}
+                      className="p-2.5 rounded-xl bg-white/5 hover:bg-cyan-500/15 border border-white/10 hover:border-cyan-500/30 text-right text-xs font-bold text-cyan-300 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                    >
+                      <Terminal className="w-4 h-4 text-cyan-400 shrink-0" />
+                      <span className="truncate">{isEn ? 'Test Bench' : 'میز تست و بات‌ها'}</span>
+                    </button>
+                  )}
+                  {onOpenUserStories && (
+                    <button
+                      onClick={() => {
+                        onClose();
+                        onOpenUserStories();
+                      }}
+                      className="p-2.5 rounded-xl bg-white/5 hover:bg-indigo-500/15 border border-white/10 hover:border-indigo-500/30 text-right text-xs font-bold text-indigo-300 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                    >
+                      <CheckSquare className="w-4 h-4 text-indigo-400 shrink-0" />
+                      <span className="truncate">{isEn ? 'User Stories' : 'داستان‌های کاربری'}</span>
+                    </button>
+                  )}
+                  {onOpenAiScenarioBuilder && (
+                    <button
+                      onClick={() => {
+                        onClose();
+                        onOpenAiScenarioBuilder();
+                      }}
+                      className="col-span-2 p-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-right text-xs font-bold text-purple-300 transition-all flex items-center justify-between cursor-pointer active:scale-95"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Bot className="w-4 h-4 text-purple-400 shrink-0" />
+                        <span>{isEn ? 'AI Content & Scenario Architect' : 'معمار سناریو و مدیریت محتوای بازی (Gemini)'}</span>
+                      </div>
+                      <span>→</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Save Current Game */}
             <button

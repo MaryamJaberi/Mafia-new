@@ -45,13 +45,14 @@ interface HostConsoleViewProps {
   onRevivePlayer: (playerId: string) => void;
   onSendToDefense: (playerId: string) => void;
   onAddAccusation: (accuserId: string, targetId: string) => void;
-  onResolveNight: (deadPlayerIds: string[], mutedPlayerId?: string, narrative?: string) => void;
+  onResolveNight: (deadPlayerIds: string[], mutedPlayerId?: string, narrative?: string, brokenShieldPlayerIds?: string[]) => void;
   onPublishChronicle: (text: string) => void;
   onEliminatePlayer: (playerId: string) => void;
   onClearDefense: () => void;
   onHostAction?: (actionType: string, payload?: any) => void;
   onAddPlayer?: (name?: string, seatNumber?: number, role?: RoleId) => void;
   onResolveTie?: (resolution: 'REVOTE' | 'NO_ELIMINATION' | 'RANDOM_DRAW' | 'ELIMINATE_BOTH', candidateIds: string[]) => void;
+  onDeleteGame?: () => void;
   language: Language;
 }
 
@@ -79,6 +80,7 @@ export const HostConsoleView: React.FC<HostConsoleViewProps> = ({
   onHostAction,
   onAddPlayer,
   onResolveTie,
+  onDeleteGame,
   language
 }) => {
   const activeLang = language || 'fa';
@@ -100,7 +102,7 @@ export const HostConsoleView: React.FC<HostConsoleViewProps> = ({
   });
 
   const handleCopyRoomLink = () => {
-    const url = `${window.location.origin}${window.location.pathname}?room=${room.roomId}`;
+    const url = `${window.location.origin}/?room=${room.roomId}`;
     navigator.clipboard.writeText(url);
     setCopiedInvite(true);
     soundEngine.playTick();
@@ -162,38 +164,60 @@ export const HostConsoleView: React.FC<HostConsoleViewProps> = ({
     };
   }, [room.phase]);
 
-  // Win condition check
+  // Win condition check considering Independents (Zodiac, Werewolf, Joker)
   const livingPlayers = room.players.filter(p => p.isAlive);
   const livingMafia = livingPlayers.filter(p => ROLE_DEFINITIONS[p.role]?.affiliation === 'MAFIA');
   const livingCitizens = livingPlayers.filter(p => ROLE_DEFINITIONS[p.role]?.affiliation === 'CITIZEN');
+  const livingIndependents = livingPlayers.filter(p => ROLE_DEFINITIONS[p.role]?.affiliation === 'INDEPENDENT');
+  const livingNonMafia = livingPlayers.filter(p => ROLE_DEFINITIONS[p.role]?.affiliation !== 'MAFIA');
 
-  const isMafiaVictory = room.phase !== 'LOBBY' && livingMafia.length >= livingCitizens.length && livingMafia.length > 0;
-  const isCitizenVictory = room.phase !== 'LOBBY' && livingMafia.length === 0 && room.players.length > 0;
+  const hasHostileIndependent = livingIndependents.some(p => ['ZODIAC', 'WEREWOLF', 'JOKER'].includes(p.role));
+
+  // 1. Independent Victory:
+  const isIndependentVictory = room.phase !== 'LOBBY' && livingPlayers.length > 0 && (
+    room.winner === 'INDEPENDENT' ||
+    (livingMafia.length === 0 && livingCitizens.length === 0 && livingIndependents.length > 0) ||
+    (livingMafia.length === 0 && livingCitizens.length <= 1 && livingIndependents.some(p => p.role === 'WEREWOLF'))
+  );
+
+  // 2. Mafia Victory: Mafia must equal or exceed ALL living opponents combined
+  const isMafiaVictory = !isIndependentVictory && room.phase !== 'LOBBY' && livingMafia.length > 0 && livingMafia.length >= livingNonMafia.length;
+
+  // 3. Citizen Victory: All mafia dead AND no hostile independents remain
+  const isCitizenVictory = !isIndependentVictory && !isMafiaVictory && room.phase !== 'LOBBY' && room.players.length > 0 && livingMafia.length === 0 && !hasHostileIndependent;
+
+  const showVictoryBanner = isMafiaVictory || isCitizenVictory || isIndependentVictory || room.phase === 'GAME_OVER';
 
   return (
     <div className="space-y-6 animate-in fade-in duration-200" dir={isRtl ? 'rtl' : 'ltr'}>
       
       {/* Victory Announcement Banner if game over condition reached */}
-      {(isMafiaVictory || isCitizenVictory || room.phase === 'GAME_OVER') && (
+      {showVictoryBanner && (
         <div className={`p-6 rounded-3xl border shadow-2xl flex flex-wrap items-center justify-between gap-4 ${
-          isMafiaVictory 
-            ? 'bg-[#1a1012] border-rose-500/50 text-[#e2e2e7]' 
-            : 'bg-[#101a14] border-emerald-500/50 text-[#e2e2e7]'
+          isIndependentVictory
+            ? 'bg-[#150f24] border-purple-500/50 text-[#e2e2e7]'
+            : isMafiaVictory 
+              ? 'bg-[#1a1012] border-rose-500/50 text-[#e2e2e7]' 
+              : 'bg-[#101a14] border-emerald-500/50 text-[#e2e2e7]'
         }`}>
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-3xl border border-white/10">
-              <Trophy className="w-7 h-7 text-amber-400" />
+              <Trophy className={`w-7 h-7 ${isIndependentVictory ? 'text-purple-400' : isMafiaVictory ? 'text-rose-400' : 'text-emerald-400'}`} />
             </div>
             <div>
               <h3 className="text-xl font-bold">
-                {isMafiaVictory 
-                  ? (t.mafiaVictoryTitle || 'پیروزی قطعی تیم مافیا! 🔴') 
-                  : (t.citizenVictoryTitle || 'پیروزی شهروندان شریف! 🟢')}
+                {isIndependentVictory
+                  ? (activeLang === 'en' ? 'Independent Faction Victory! 🟣' : 'پیروزی ساید مستقل! 🟣')
+                  : isMafiaVictory 
+                    ? (t.mafiaVictoryTitle || 'پیروزی قطعی تیم مافیا! 🔴') 
+                    : (t.citizenVictoryTitle || 'پیروزی شهروندان شریف! 🟢')}
               </h3>
               <p className="text-xs text-slate-400 mt-1">
-                {isMafiaVictory 
-                  ? (t.mafiaVictoryDesc || 'تعداد اعضای مافیا با شهروندان برابر شد و کنترل کامل شهر به دست مافیا افتاد.') 
-                  : (t.citizenVictoryDesc || 'تمامی اعضای مافیا شناسایی و از شهر حذف شدند.')}
+                {isIndependentVictory
+                  ? (activeLang === 'en' ? 'The independent faction reached their victory condition and conquered the city.' : 'نقش مستقل به شرط پیروزی خود دست یافت و به تنهایی فاتح شهر گردید.')
+                  : isMafiaVictory 
+                    ? (t.mafiaVictoryDesc || 'تعداد اعضای مافیا با کل مخالفان برابر شد و کنترل کامل شهر به دست مافیا افتاد.') 
+                    : (t.citizenVictoryDesc || 'تمامی اعضای مافیا و تهدیدهای شهر شناسایی و از بازی حذف شدند.')}
               </p>
             </div>
           </div>
@@ -386,6 +410,7 @@ export const HostConsoleView: React.FC<HostConsoleViewProps> = ({
             onAddPlayer={onAddPlayer}
             onStartGame={onStartGame}
             onResolveTie={onResolveTie}
+            onDeleteGame={onDeleteGame}
             language={language}
           />
         </div>

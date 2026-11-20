@@ -10,28 +10,16 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // پروندهٔ کاربر: فقط خودِ کاربر می‌خواند و می‌نویسد.
-    // (اپ هم جز پروندهٔ کاربر جاری چیزی نمی‌خواند.)
+    // User profile documents
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read: if true;
+      allow write: if isOwner(userId);
     }
 
-    // اتاق بازی: ساختن برای هر کاربر واردشده، ولی تغییر و پاک‌کردن فقط به دست میزبان.
-    // اتاق‌های قدیمی hostUid ندارند؛ برای نشکستن آن‌ها قاعده عقب‌سازگار است.
-    // وقتی اپ هنگام ساختن اتاق hostUid را بنویسد، شرط دوم خودبه‌خود فعال می‌شود.
+    // Rooms documents
     match /rooms/{roomId} {
-      function isHost() {
-        return isAuthenticated() &&
-               ('hostUid' in resource.data) &&
-               resource.data.hostUid == request.auth.uid;
-      }
-      function isLegacyRoom() {
-        return !('hostUid' in resource.data);
-      }
-
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update, delete: if isHost() || (isAuthenticated() && isLegacyRoom());
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
 
     // Saved Game Notes / User Logs

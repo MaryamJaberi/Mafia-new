@@ -2,12 +2,13 @@
 
 @layer base {
   :root {
-    --bg-main: #090b11;
-    --bg-surface: #0f121d;
-    --bg-elevated: #161a29;
+    --bg-main: #07070a;
+    --bg-surface: #0d0e15;
+    --bg-elevated: #13141f;
     --text-primary: #f8fafc;
     --text-secondary: #94a3b8;
-    --accent-amber: #f59e0b;
+    --accent-crimson: #e11d48;
+    --accent-amber: #d97706;
     --accent-emerald: #10b981;
     --accent-rose: #f43f5e;
     --accent-cyan: #06b6d4;
@@ -17,7 +18,7 @@
   body {
     font-family: 'Vazirmatn', 'Outfit', 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     color-scheme: dark;
-    background-color: #090b11;
+    background-color: #07070a;
     color: #f8fafc;
     margin: 0;
     padding: 0;
@@ -27,9 +28,9 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     background-image: 
-      radial-gradient(ellipse 90% 60% at 50% -20%, rgba(245, 158, 11, 0.08), transparent 70%),
-      radial-gradient(ellipse 70% 50% at 80% 110%, rgba(139, 92, 246, 0.06), transparent 70%),
-      radial-gradient(ellipse 60% 40% at 10% 90%, rgba(16, 185, 129, 0.05), transparent 70%);
+      radial-gradient(ellipse 95% 65% at 50% -20%, rgba(225, 29, 72, 0.12), transparent 70%),
+      radial-gradient(ellipse 70% 50% at 85% 115%, rgba(217, 119, 6, 0.07), transparent 70%),
+      radial-gradient(ellipse 60% 40% at 10% 90%, rgba(225, 29, 72, 0.06), transparent 70%);
     background-attachment: fixed;
   }
 

@@ -13,7 +13,7 @@ interface NightEngineModalProps {
   isOpen: boolean;
   onClose: () => void;
   room: RoomState;
-  onResolveNight: (deadPlayerIds: string[], mutedPlayerId?: string, narrative?: string) => void;
+  onResolveNight: (deadPlayerIds: string[], mutedPlayerId?: string, narrative?: string, brokenShieldPlayerIds?: string[]) => void;
   onBroadcastNightAudio?: () => void;
   language: Language;
 }
@@ -95,9 +95,16 @@ export const NightEngineModal: React.FC<NightEngineModalProps> = ({
   const detectiveResult = getDetectiveResult(detectiveCheckTarget);
 
   // Auto Conflict Resolution Preview
-  const resolveConflicts = () => {
+  interface NightResolutionResult {
+    deaths: string[];
+    logs: string[];
+    brokenShieldPlayerIds: string[];
+  }
+
+  const resolveConflicts = (): NightResolutionResult => {
     const deaths: string[] = [];
     const logs: string[] = [];
+    const brokenShieldPlayerIds: string[] = [];
 
     // Saghi / Bartender effect
     if (bartenderTarget) {
@@ -117,6 +124,7 @@ export const NightEngineModal: React.FC<NightEngineModalProps> = ({
       if (doctorSaveTarget === mafiaKillTarget) {
         logs.push(isEn ? `Doctor saved ${target?.name}'s life from mafia shot.` : `پزشک شهر جان ${target?.name} را در برابر شلیک مافیا نجات داد.`);
       } else if (target?.role === 'ARMORED' && target.hasShield !== false) {
+        brokenShieldPlayerIds.push(target.id);
         logs.push(isEn ? `Mafia shot hit Armored (${target?.name}) and destroyed vest.` : `شلیک مافیا به زره‌پوش (${target?.name}) اصابت کرد و جلیقه او از بین رفت.`);
       } else {
         deaths.push(mafiaKillTarget);
@@ -153,15 +161,15 @@ export const NightEngineModal: React.FC<NightEngineModalProps> = ({
       logs.push(isEn ? `Recorded claim: ${claimsNote.trim()}` : `ادعای ثبت‌شده: ${claimsNote.trim()}`);
     }
 
-    return { deaths, logs };
+    return { deaths, logs, brokenShieldPlayerIds };
   };
 
-  const { deaths: predictedDeaths, logs: predictedLogs } = resolveConflicts();
+  const { deaths: predictedDeaths, logs: predictedLogs, brokenShieldPlayerIds: predictedBrokenShields } = resolveConflicts();
 
   const handleApplyResolution = () => {
     soundEngine.playGong();
     const narrative = predictedLogs.join(' ');
-    onResolveNight(predictedDeaths, natashaMuteTarget || undefined, narrative);
+    onResolveNight(predictedDeaths, natashaMuteTarget || undefined, narrative, predictedBrokenShields);
     onClose();
   };
 

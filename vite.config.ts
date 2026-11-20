@@ -5,8 +5,6 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
-    // Set BASE_PATH (e.g. /mafia/) when building for a sub-path such as GitHub Pages
-    base: process.env.BASE_PATH || '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

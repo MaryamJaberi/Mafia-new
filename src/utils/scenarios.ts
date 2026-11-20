@@ -1857,9 +1857,14 @@ export function balanceScenarioRoles(
   ];
 
   // If scenarioRoles is empty or undefined, use default starter deck
-  let sourceRoles: RoleId[] = (scenarioRoles && scenarioRoles.length > 0)
+  const sourceRoles: RoleId[] = (scenarioRoles && scenarioRoles.length > 0)
     ? [...scenarioRoles]
     : defaultStarterDeck.slice(0, targetPlayerCount);
+
+  // Exact match rule: If target count matches the scenario deck length, preserve handcrafted balance 100% untouched
+  if (sourceRoles.length === targetPlayerCount) {
+    return [...sourceRoles];
+  }
 
   // Clean duplicate unique roles first
   const seenUnique = new Set<string>();
@@ -1877,7 +1882,7 @@ export function balanceScenarioRoles(
   const result: RoleId[] = [...sanitizedRoles];
   const targetMafia = Math.max(1, Math.floor(targetPlayerCount / 3));
 
-  // 1. If result has more cards than target count, reduce
+  // 1. If result has more cards than target count, reduce gently
   if (result.length > targetPlayerCount) {
     while (result.length > targetPlayerCount) {
       let currentMafia = 0;
@@ -1892,9 +1897,9 @@ export function balanceScenarioRoles(
           result.splice(simpleMafiaIdx, 1);
           continue;
         }
-        // Remove non-Godfather mafia
+        // Remove non-leader mafia
         const nonGfMafiaIdx = result.findIndex(r => {
-          return ROLE_DEFINITIONS[r]?.affiliation === 'MAFIA' && r !== 'GODFATHER';
+          return ROLE_DEFINITIONS[r]?.affiliation === 'MAFIA' && r !== 'GODFATHER' && r !== 'AL_CAPONE';
         });
         if (nonGfMafiaIdx >= 0) {
           result.splice(nonGfMafiaIdx, 1);
@@ -1922,7 +1927,7 @@ export function balanceScenarioRoles(
     }
   }
 
-  // 2. If result has fewer cards than target count, expand
+  // 2. If result has fewer cards than target count, expand with simple roles
   if (result.length < targetPlayerCount) {
     while (result.length < targetPlayerCount) {
       let currentMafia = 0;
@@ -1935,46 +1940,6 @@ export function balanceScenarioRoles(
       } else {
         result.push('CITIZEN_SIMPLE');
       }
-    }
-  }
-
-  // 3. Final verification: ensure exact mafia ratio even if length matched initially
-  let finalMafia = 0;
-  result.forEach(r => {
-    if (ROLE_DEFINITIONS[r]?.affiliation === 'MAFIA') finalMafia++;
-  });
-
-  // Adjust if mafia count is off target
-  if (finalMafia > targetMafia) {
-    for (let i = result.length - 1; i >= 0 && finalMafia > targetMafia; i--) {
-      if (ROLE_DEFINITIONS[result[i]]?.affiliation === 'MAFIA' && result[i] !== 'GODFATHER') {
-        result[i] = 'CITIZEN_SIMPLE';
-        finalMafia--;
-      }
-    }
-  } else if (finalMafia < targetMafia) {
-    for (let i = result.length - 1; i >= 0 && finalMafia < targetMafia; i--) {
-      if (result[i] === 'CITIZEN_SIMPLE') {
-        result[i] = 'MAFIA_SIMPLE';
-        finalMafia++;
-      }
-    }
-  }
-
-  // Ensure presence of 1 Godfather and 1 Doctor
-  if (!result.includes('GODFATHER')) {
-    const firstMafiaIdx = result.findIndex(r => ROLE_DEFINITIONS[r]?.affiliation === 'MAFIA');
-    if (firstMafiaIdx >= 0) {
-      result[firstMafiaIdx] = 'GODFATHER';
-    } else {
-      result[0] = 'GODFATHER';
-    }
-  }
-
-  if (targetPlayerCount >= 6 && !result.includes('DOCTOR') && !result.includes('DOCTOR_WATSON')) {
-    const citIdx = result.findIndex(r => r === 'CITIZEN_SIMPLE');
-    if (citIdx >= 0) {
-      result[citIdx] = 'DOCTOR';
     }
   }
 
