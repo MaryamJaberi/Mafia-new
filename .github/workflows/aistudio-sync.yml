@@ -59,8 +59,15 @@ jobs:
           git fetch --no-tags studio main
           if ! git fetch --no-tags studio "+refs/tags/${BASE_TAG}:refs/tags/${BASE_TAG}" 2>/dev/null; then
             # اجرای اول: نقطهٔ همگام‌سازی هنوز نیست؛ وضعیت فعلی AI Studio نقطهٔ شروع می‌شود
-            echo "تگ ${BASE_TAG} نبود؛ روی main فعلی AI Studio ساخته می‌شود."
-            git tag -f "${BASE_TAG}" studio/main
+            # نقطهٔ شروع: اگر فایل .github/aistudio-base.txt شناسهٔ commit تازه‌ترین کاری را دارد که در مخزن اصلی ادغام شده،
+            # همان؛ وگرنه main فعلی AI Studio. (هر چه بعد از آن در AI Studio ثبت شده باشد، PR می‌شود.)
+            start=studio/main
+            if [ -f .github/aistudio-base.txt ]; then
+              want=$(tr -d '[:space:]' < .github/aistudio-base.txt)
+              if git cat-file -e "${want}^{commit}" 2>/dev/null; then start="$want"; fi
+            fi
+            echo "تگ ${BASE_TAG} نبود؛ روی ${start} ساخته می‌شود."
+            git tag -f "${BASE_TAG}" "$start"
             git push studio "refs/tags/${BASE_TAG}"
           fi
 

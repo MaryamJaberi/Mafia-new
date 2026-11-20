@@ -44,6 +44,7 @@ interface GodTableViewProps {
   onAddPlayer?: (name?: string, seatNumber?: number, role?: RoleId) => void;
   onStartGame?: () => void;
   onResolveTie?: (resolution: 'REVOTE' | 'NO_ELIMINATION' | 'RANDOM_DRAW' | 'ELIMINATE_BOTH', candidateIds: string[]) => void;
+  onDeleteGame?: () => void;
   language: Language;
 }
 
@@ -160,6 +161,7 @@ export const GodTableView: React.FC<GodTableViewProps> = ({
   onAddPlayer,
   onStartGame,
   onResolveTie,
+  onDeleteGame,
   language
 }) => {
   const t = translations[language] || translations.fa;
@@ -173,6 +175,7 @@ export const GodTableView: React.FC<GodTableViewProps> = ({
   const [isDeckBuilderOpen, setIsDeckBuilderOpen] = useState(false);
   const [isVotingModalOpen, setIsVotingModalOpen] = useState(false);
   const [showShuffleConfirmModal, setShowShuffleConfirmModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [layoutMode, setLayoutMode] = useState<'STADIUM' | 'GRID'>('STADIUM');
 
@@ -291,7 +294,7 @@ export const GodTableView: React.FC<GodTableViewProps> = ({
 
   // Copy Room Link
   const handleCopyInvite = () => {
-    const url = `${window.location.origin}${window.location.pathname}?room=${room.roomId}`;
+    const url = `${window.location.origin}/?room=${room.roomId}`;
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
     soundEngine.playTick();
@@ -742,6 +745,22 @@ export const GodTableView: React.FC<GodTableViewProps> = ({
               {t.seatsViewBtn || (isEn ? "Grid" : "شبکه")} ({total})
             </button>
           </div>
+
+          {/* Terminate / Delete Running Game Button */}
+          {onDeleteGame && (
+            <button
+              id="btn-god-table-delete-match"
+              onClick={() => {
+                soundEngine.playTick();
+                setShowDeleteModal(true);
+              }}
+              className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/40 text-rose-300 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+              title={isEn ? "Terminate & Delete Match" : "ابطال و حذف مسابقه در حال اجرا"}
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span className="hidden sm:inline">{isEn ? "Delete Match" : "حذف مسابقه"}</span>
+            </button>
+          )}
         </div>
 
       </div>
@@ -1550,6 +1569,52 @@ export const GodTableView: React.FC<GodTableViewProps> = ({
                 className="px-4 py-3 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 font-bold text-xs cursor-pointer"
               >
                 {t.cancelBtn || "Cancel"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Running Match Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="relative w-full max-w-md bg-[#0a0c14] border-2 border-rose-500/50 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-rose-950/70 overflow-hidden text-right" dir={isRtl ? 'rtl' : 'ltr'}>
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-rose-500 to-transparent" />
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
+                <Trash2 className="w-6 h-6 animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-white">
+                  {isEn ? 'Terminate & Delete Running Game?' : 'ابطال و حذف مسابقه در حال اجرا؟'}
+                </h3>
+                <p className="text-xs text-rose-400/90 font-mono font-bold mt-1">
+                  {isEn ? `Room: ${room.roomId}` : `کد اتاق: ${room.roomId}`}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed mb-6 bg-white/[0.03] p-3.5 rounded-2xl border border-white/5">
+              {isEn 
+                ? 'Are you sure you want to terminate and delete this ongoing match? All player seats and room data will be wiped.'
+                : 'آیا از حذف کامل این مسابقه در حال اجرا اطمینان دارید؟ اتاق لغو شده و وضعیت مسابقه از حافظه سرور پاک می‌شود.'}
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                id="btn-confirm-delete-god-table"
+                onClick={() => {
+                  soundEngine.playGong();
+                  setShowDeleteModal(false);
+                  if (onDeleteGame) onDeleteGame();
+                }}
+                className="flex-1 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs transition-all shadow-lg shadow-rose-950/50 cursor-pointer active:scale-95"
+              >
+                {isEn ? 'Yes, Terminate & Delete' : 'تأیید و حذف قطعی مسابقه'}
+              </button>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="py-3 px-5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white font-bold text-xs transition-all cursor-pointer"
+              >
+                {isEn ? 'Cancel' : 'انصراف'}
               </button>
             </div>
           </div>

@@ -3,7 +3,7 @@ import {
   Crown, Smartphone, Volume2, VolumeX, 
   History, Music, RefreshCw, Sparkles,
   Search, Layers, BookOpen, Brain, Award, Sliders, ChevronDown, Bug, Video, CheckSquare,
-  Cloud, Bot, LayoutGrid, Home, Globe, Check
+  Cloud, Bot, LayoutGrid, Home, Globe, Check, Trash2, ShieldAlert
 } from 'lucide-react';
 import { Language } from '../../types/mafia';
 import { translations, isRtlLanguage } from '../../utils/translations';
@@ -40,6 +40,8 @@ interface HeaderProps {
   onOpenAuthProfile?: () => void;
   onOpenGeminiAssistant?: () => void;
   onNewGame: () => void;
+  onDeleteGame?: () => void;
+  isSuperAdminUser?: boolean;
   onGoHome?: () => void;
   roomId?: string;
   isOnline: boolean;
@@ -77,6 +79,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAuthProfile,
   onOpenGeminiAssistant,
   onNewGame,
+  onDeleteGame,
+  isSuperAdminUser,
   onGoHome,
   roomId,
   isOnline,
@@ -88,6 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
   const [isToolsHubOpen, setIsToolsHubOpen] = useState(false);
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
   const [copiedRoom, setCopiedRoom] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const langMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -104,7 +109,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleCopyRoom = () => {
     if (!roomId) return;
-    const url = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
+    const url = `${window.location.origin}/?room=${roomId}`;
     navigator.clipboard.writeText(url);
     soundEngine.playTick();
     setCopiedRoom(true);
@@ -318,6 +323,13 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
+            {/* Super Admin Status Badge */}
+            {isSuperAdminUser && (
+              <span className="hidden lg:inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-bold">
+                <span>🕵️‍♂️ JABERI</span>
+              </span>
+            )}
+
             {/* New Game */}
             {viewMode === 'HOST' && (
               <button
@@ -331,11 +343,75 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
+            {/* Terminate / Delete Running Game Button */}
+            {viewMode === 'HOST' && onDeleteGame && (
+              <button
+                id="btn-delete-game-header"
+                onClick={() => {
+                  soundEngine.playTick();
+                  setShowDeleteConfirm(true);
+                }}
+                className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 hover:text-white border border-rose-500/30 text-xs transition-all flex items-center gap-1 cursor-pointer"
+                title={language === 'en' ? 'Terminate & Delete Running Game' : 'ابطال و حذف مسابقه در حال اجرا'}
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                <span className="hidden md:inline text-xs font-bold">{language === 'en' ? 'Delete' : 'حذف بازی'}</span>
+              </button>
+            )}
+
             <PwaInstallBanner language={language} />
           </div>
 
         </div>
       </header>
+
+      {/* Delete / Terminate Running Game Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-150">
+          <div className="relative w-full max-w-md bg-[#0a0c14] border-2 border-rose-500/50 rounded-3xl p-6 sm:p-7 shadow-2xl shadow-rose-950/70 overflow-hidden text-right" dir={isRtlLanguage(language) ? 'rtl' : 'ltr'}>
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-rose-500 to-transparent" />
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
+                <Trash2 className="w-6 h-6 animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-base sm:text-lg font-black text-white">
+                  {language === 'en' ? 'Terminate & Delete Running Game?' : 'ابطال و حذف مسابقه در حال اجرا؟'}
+                </h3>
+                {roomId && (
+                  <p className="text-xs text-rose-400/90 font-mono font-bold mt-1">
+                    {language === 'en' ? `Room: ${roomId}` : `کد اتاق: ${roomId}`}
+                  </p>
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-slate-300 leading-relaxed mb-6 bg-white/[0.03] p-3.5 rounded-2xl border border-white/5">
+              {language === 'en'
+                ? 'Are you sure you want to terminate and delete this ongoing match? All player connections and running states will be completely purged.'
+                : 'آیا از حذف و ابطال کامل این مسابقه در حال اجرا اطمینان دارید؟ تمام اتصال‌های بازیکنان، نقش‌های محرمانه و اتاق مسابقه به طور کامل پاک خواهند شد.'}
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                id="btn-confirm-delete-game-header"
+                onClick={() => {
+                  soundEngine.playGong();
+                  setShowDeleteConfirm(false);
+                  if (onDeleteGame) onDeleteGame();
+                }}
+                className="flex-1 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs transition-all shadow-lg shadow-rose-950/50 cursor-pointer active:scale-95"
+              >
+                {language === 'en' ? 'Yes, Terminate & Delete' : 'تأیید و حذف قطعی مسابقه'}
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="py-3 px-5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white font-bold text-xs transition-all cursor-pointer"
+              >
+                {language === 'en' ? 'Cancel' : 'انصراف'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Unified Tools Hub Modal */}
       <ToolsHubModal

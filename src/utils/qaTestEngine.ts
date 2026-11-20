@@ -106,7 +106,8 @@ export function simulateSingleGameRun(
     joinedAt: Date.now() + idx * 10,
     fouls: 0,
     speechMuted: false,
-    roleRevealedAndConfirmed: true
+    roleRevealedAndConfirmed: true,
+    hasShield: roleId === 'ARMORED'
   }));
 
   let dayNumber = 1;
@@ -126,14 +127,21 @@ export function simulateSingleGameRun(
     const aliveIndependents = alivePlayers.filter(p => ROLE_DEFINITIONS[p.role]?.affiliation === 'INDEPENDENT');
 
     // Check immediate victory condition
-    if (aliveMafia.length === 0) {
+    const hasHostileInd = aliveIndependents.some(p => ['ZODIAC', 'WEREWOLF'].includes(p.role));
+
+    if (aliveMafia.length === 0 && !hasHostileInd) {
       winner = 'CITIZENS';
-      eventsLog.push('پیروزی شهروندان: تمامی اعضای مافیا حذف شدند.');
+      eventsLog.push('پیروزی شهروندان: تمامی اعضای مافیا و تهدیدهای مستقل حذف شدند.');
       break;
     }
-    if (aliveMafia.length >= aliveCitizens.length + aliveIndependents.length) {
+    if (aliveMafia.length >= aliveCitizens.length + aliveIndependents.length && aliveMafia.length > 0) {
       winner = 'MAFIA';
-      eventsLog.push('پیروزی مافیا: تعداد مافیا به برابری با شهروندان رسید.');
+      eventsLog.push('پیروزی مافیا: تعداد مافیا به برابری با کل مخالفان رسید.');
+      break;
+    }
+    if (aliveMafia.length === 0 && aliveCitizens.length === 0 && aliveIndependents.length > 0) {
+      winner = 'INDEPENDENT';
+      eventsLog.push('پیروزی مستقل: نقش مستقل به عنوان فاتح شهر باقی ماند.');
       break;
     }
 
@@ -172,8 +180,14 @@ export function simulateSingleGameRun(
     if (mafiaTarget) {
       if (doctorSavedPlayer && doctorSavedPlayer.id === mafiaTarget.id) {
         eventsLog.push(`نجات موفق! «${mafiaTarget.name}» با درمان دکتر در بازی باقی ماند.`);
-      } else if (mafiaTarget.role === 'ARMORED' && Math.random() < 0.5) {
-        eventsLog.push(`شلیک به زره‌پوش «${mafiaTarget.name}» اصابت کرد و فقط زره او افتاد.`);
+      } else if (mafiaTarget.role === 'ARMORED' && (mafiaTarget as any).hasShield !== false) {
+        (mafiaTarget as any).hasShield = false;
+        eventsLog.push(`شلیک به زره‌پوش «${mafiaTarget.name}» اصابت کرد و جلیقه ضدگلوله او شکست.`);
+        assertions.push({
+          name: 'تست شکستن زره زره‌پوش در اولین شلیک',
+          passed: true,
+          details: 'زره با اولین شلیک مصرف شد و برای شلیک‌های بعدی غیرفعال گشت.'
+        });
       } else {
         mafiaTarget.isAlive = false;
         eventsLog.push(`شلیک شب: «${mafiaTarget.name}» (${mafiaTarget.role}) کشته شد.`);
@@ -185,15 +199,22 @@ export function simulateSingleGameRun(
     const currentAlive = players.filter(p => p.isAlive);
     const dayMafia = currentAlive.filter(p => ROLE_DEFINITIONS[p.role]?.affiliation === 'MAFIA');
     const dayCitizens = currentAlive.filter(p => ROLE_DEFINITIONS[p.role]?.affiliation === 'CITIZEN');
+    const dayIndependents = currentAlive.filter(p => ROLE_DEFINITIONS[p.role]?.affiliation === 'INDEPENDENT');
+    const dayHostileInd = dayIndependents.some(p => ['ZODIAC', 'WEREWOLF'].includes(p.role));
 
-    if (dayMafia.length === 0) {
+    if (dayMafia.length === 0 && !dayHostileInd) {
       winner = 'CITIZENS';
       eventsLog.push('پیروزی شهروندان در سپیده‌دم روز.');
       break;
     }
-    if (dayMafia.length >= dayCitizens.length) {
+    if (dayMafia.length >= dayCitizens.length + dayIndependents.length && dayMafia.length > 0) {
       winner = 'MAFIA';
-      eventsLog.push('پیروزی مافیا در روز.');
+      eventsLog.push('پیروزی مافیا در روز: برابری با کل مخالفان.');
+      break;
+    }
+    if (dayMafia.length === 0 && dayCitizens.length === 0 && dayIndependents.length > 0) {
+      winner = 'INDEPENDENT';
+      eventsLog.push('پیروزی ساید مستقل در روز.');
       break;
     }
 

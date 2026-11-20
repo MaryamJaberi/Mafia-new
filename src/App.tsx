@@ -37,7 +37,7 @@ import { DEFAULT_SCENARIOS, ROLE_DEFINITIONS, balanceScenarioRoles } from './uti
 import { DeckRoleItem, Scenario } from './types/mafia';
 import { 
   loadAppSettings, saveAppSettings, saveGameHistory, 
-  saveActiveRoomState, loadActiveRoomState,
+  saveActiveRoomState, loadActiveRoomState, saveActiveRoomLocally,
   getLocalSettings, saveLocalSettings, defaultSettings
 } from './utils/storage';
 import { soundEngine } from './utils/audioSynth';
@@ -47,6 +47,8 @@ import { HomeScreen } from './components/HomeScreen';
 import { GameCreatorScreen } from './components/HostConsole/GameCreatorScreen';
 import { RulesBriefingChecklistModal } from './components/HostConsole/RulesBriefingChecklistModal';
 import { GamePhaseStepper } from './components/common/GamePhaseStepper';
+import { isSuperAdmin, SUPER_ADMIN_EMAIL } from './utils/authPermissions';
+import { auth, onAuthStateChanged, User as FirebaseUser } from './lib/firebase';
 
 export default function App() {
   const [appSettings, setAppSettings] = useState(() => loadAppSettings());
@@ -55,6 +57,27 @@ export default function App() {
   const [language, setLanguage] = useState<Language>(appSettings.language);
   const [isMuted, setIsMuted] = useState(appSettings.isSoundMuted);
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+
+  // Super Admin state & permission gating
+  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+    return () => unsub();
+  }, []);
+
+  const isAuthorizedAdmin = isSuperAdmin(currentUser);
+
+  const requireAdminAccess = useCallback((featureName: string, onAllowed: () => void) => {
+    if (isSuperAdmin(auth.currentUser)) {
+      onAllowed();
+    } else {
+      setIsAuthProfileOpen(true);
+      soundEngine.playTick();
+    }
+  }, []);
 
   // Active Room State - initialize with immediate local room for zero-delay rendering
   const [room, setRoom] = useState<RoomState>(() => ({
@@ -318,6 +341,60 @@ export default function App() {
     setRoom(localRoom);
     setCurrentPlayerId('');
   }, [connectToRoomSSE]);
+
+  // Terminate & Delete Running Game (Removes room from server memory and clears local active room)
+  const handleDeleteRunningGame = useCallback(async () => {
+    if (!room?.roomId) return;
+    try {
+      await fetch(`/api/rooms/${room.roomId}`, {
+        method: 'DELETE',
+        headers: room.hostToken ? { 'Authorization': `Bearer ${room.hostToken}` } : {}
+      });
+    } catch (err) {
+      console.warn('Error deleting room from server:', err);
+    }
+
+    if (sseRef.current) {
+      sseRef.current.close();
+      sseRef.current = null;
+    }
+    saveActiveRoomLocally(null);
+
+    const freshRoomId = 'MAFIA-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+    const freshRoom: RoomState = {
+      roomId: freshRoomId,
+      hostToken: 'host_' + Date.now(),
+      joinToken: Math.random().toString(36).substring(2, 8),
+      scenarioId: 'classic-9',
+      phase: 'LOBBY',
+      dayNumber: 1,
+      isTimerRunning: false,
+      timerSeconds: 60,
+      timerTotal: 60,
+      isLobbyLocked: false,
+      players: [],
+      accusations: [],
+      nightActions: [],
+      votes: [],
+      announcements: [
+        {
+          id: `ann_${Date.now()}`,
+          title: language === 'en' ? 'Game Terminated & Deleted' : 'مسابقه قبلی لغو و پاک‌سازی شد',
+          content: language === 'en' ? 'The in-progress game was purged from server.' : 'بازی در حال اجرا با موفقیت حذف و اتاق پاک‌سازی شد.',
+          phase: 'LOBBY',
+          dayNumber: 1,
+          timestamp: Date.now(),
+          isPublic: true,
+          type: 'INFO'
+        }
+      ],
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    setRoom(freshRoom);
+    setActiveScreen('HOME');
+    soundEngine.playGong();
+  }, [room?.roomId, room?.hostToken, language]);
 
   // Initial load: create or restore room
   useEffect(() => {
@@ -694,8 +771,10 @@ export default function App() {
             soundEngine.playTick();
           }}
           onOpenAiScenarioBuilder={() => {
-            setIsAiScenarioBuilderOpen(true);
-            soundEngine.playTick();
+            requireAdminAccess(
+              language === 'en' ? 'AI Scenario Architect (Game Content Management)' : 'معمار سناریو و مدیریت محتوای بازی',
+              () => setIsAiScenarioBuilderOpen(true)
+            );
           }}
           onOpenDualSimulator={() => {
             setActiveScreen('PLAYING');
@@ -721,6 +800,31 @@ export default function App() {
           onReturnToActiveRoom={() => {
             setActiveScreen('PLAYING');
             soundEngine.playTick();
+          }}
+          onDeleteActiveRoom={handleDeleteRunningGame}
+          onOpenAutomatedQA={() => {
+            requireAdminAccess(
+              language === 'en' ? 'Automated QA Suite & Test Results' : 'مجموعه آزمون‌های خودکار QA و نتایج تست‌ها',
+              () => setIsAutomatedQAOpen(true)
+            );
+          }}
+          onOpenFullGameReport={() => {
+            requireAdminAccess(
+              language === 'en' ? 'Full Game Test Report' : 'گزارش جامع شبیه‌سازی ۱۸ نفره',
+              () => setIsFullGameReportOpen(true)
+            );
+          }}
+          onOpenTestBench={() => {
+            requireAdminAccess(
+              language === 'en' ? 'Multiplayer Test Bench' : 'میز تست و شبیه‌ساز چندنفره',
+              () => setIsTestBenchOpen(true)
+            );
+          }}
+          onOpenUserStories={() => {
+            requireAdminAccess(
+              language === 'en' ? 'User Stories & Test Suite' : 'داستان‌های کاربری و تست سناریوها',
+              () => setIsUserStoriesOpen(true)
+            );
           }}
         />
 
@@ -784,6 +888,11 @@ export default function App() {
               onClose={() => setIsAuthProfileOpen(false)}
               language={language}
               activeRoomId={room?.roomId}
+              onOpenAutomatedQA={() => setIsAutomatedQAOpen(true)}
+              onOpenFullGameReport={() => setIsFullGameReportOpen(true)}
+              onOpenTestBench={() => setIsTestBenchOpen(true)}
+              onOpenUserStories={() => setIsUserStoriesOpen(true)}
+              onOpenAiScenarioBuilder={() => setIsAiScenarioBuilderOpen(true)}
             />
           )}
 
@@ -855,6 +964,41 @@ export default function App() {
               initialToken={joinUrlParams.token || ''}
             />
           )}
+
+          {isAutomatedQAOpen && (
+            <AutomatedQASuiteModal
+              isOpen={isAutomatedQAOpen}
+              onClose={() => setIsAutomatedQAOpen(false)}
+              language={language}
+            />
+          )}
+
+          {isFullGameReportOpen && (
+            <FullGameTestReportModal
+              isOpen={isFullGameReportOpen}
+              onClose={() => setIsFullGameReportOpen(false)}
+              onApplyGameToRoom={(players) => dispatchAction('SET_PLAYERS', { players })}
+              language={language}
+            />
+          )}
+
+          {isTestBenchOpen && (
+            <MultiPlayerTestBenchModal
+              isOpen={isTestBenchOpen}
+              onClose={() => setIsTestBenchOpen(false)}
+              room={room || undefined}
+              onApplyBotsToRoom={(players) => dispatchAction('SET_PLAYERS', { players })}
+              language={language}
+            />
+          )}
+
+          {isUserStoriesOpen && (
+            <UserStoriesChecklistModal
+              isOpen={isUserStoriesOpen}
+              onClose={() => setIsUserStoriesOpen(false)}
+              language={language}
+            />
+          )}
         </React.Suspense>
       </ErrorBoundary>
     );
@@ -892,27 +1036,54 @@ export default function App() {
         onOpenSoundboard={() => setIsSoundboardOpen(true)}
         onOpenHistory={() => setIsHistoryOpen(true)}
         onOpenFlutterExport={() => setIsFlutterExportOpen(true)}
-        onOpenTestBench={() => setIsTestBenchOpen(true)}
+        onOpenTestBench={() => {
+          requireAdminAccess(
+            language === 'en' ? 'Multiplayer Test Bench' : 'میز تست و شبیه‌ساز چندنفره',
+            () => setIsTestBenchOpen(true)
+          );
+        }}
         onOpenRuleSearch={() => setIsRuleSearchOpen(true)}
-        onOpenFullGameReport={() => setIsFullGameReportOpen(true)}
+        onOpenFullGameReport={() => {
+          requireAdminAccess(
+            language === 'en' ? 'Full Game Test Report' : 'گزارش جامع شبیه‌سازی ۱۸ نفره',
+            () => setIsFullGameReportOpen(true)
+          );
+        }}
         onOpenMatrixModal={() => {
           setActiveMatrixScenarioId(room?.scenarioId || 'classic');
           setIsMatrixModalOpen(true);
         }}
         onOpenPresetScenarios={() => setIsPresetScenariosOpen(true)}
         onOpenRoleGuide={() => setIsRoleGuideOpen(true)}
-        onOpenAiScenarioBuilder={() => setIsAiScenarioBuilderOpen(true)}
+        onOpenAiScenarioBuilder={() => {
+          requireAdminAccess(
+            language === 'en' ? 'AI Scenario Architect (Game Content Management)' : 'معمار سناریو و مدیریت محتوای بازی',
+            () => setIsAiScenarioBuilderOpen(true)
+          );
+        }}
         onOpenGameProfileModal={() => setIsGameProfileOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenBugReport={() => setIsBugReportOpen(true)}
-        onOpenAutomatedQA={() => setIsAutomatedQAOpen(true)}
+        onOpenAutomatedQA={() => {
+          requireAdminAccess(
+            language === 'en' ? 'Automated QA Suite & Test Results' : 'مجموعه آزمون‌های خودکار QA و نتایج تست‌ها',
+            () => setIsAutomatedQAOpen(true)
+          );
+        }}
         onOpenGodTable={() => setIsGlobalGodDrawerOpen(true)}
         onOpenOnlineMeeting={() => setIsOnlineMeetingOpen(true)}
-        onOpenUserStories={() => setIsUserStoriesOpen(true)}
+        onOpenUserStories={() => {
+          requireAdminAccess(
+            language === 'en' ? 'User Stories & Test Suite' : 'داستان‌های کاربری و تست سناریوها',
+            () => setIsUserStoriesOpen(true)
+          );
+        }}
         onOpenJoinModal={() => setIsJoinModalOpen(true)}
         onOpenAuthProfile={() => setIsAuthProfileOpen(true)}
         onOpenGeminiAssistant={() => setIsGeminiAssistantOpen(true)}
         onNewGame={handleCreateNewGame}
+        onDeleteGame={handleDeleteRunningGame}
+        isSuperAdminUser={isAuthorizedAdmin}
         onGoHome={() => setActiveScreen('HOME')}
         roomId={room?.roomId}
         isOnline={isOnline}
@@ -982,14 +1153,15 @@ export default function App() {
             onRevivePlayer={(playerId) => dispatchAction('REVIVE_PLAYER', { playerId })}
             onSendToDefense={(playerId) => dispatchAction('SEND_TO_DEFENSE', { playerId })}
             onAddAccusation={(accuserId, targetId) => dispatchAction('ADD_ACCUSATION', { accuserId, targetId })}
-            onResolveNight={(deadPlayerIds, mutedPlayerId, narrative) => 
-              dispatchAction('RESOLVE_NIGHT', { deadPlayerIds, mutedPlayerId, narrative })
-            }
+            onResolveNight={(deadPlayerIds, mutedPlayerId, narrative, brokenShieldPlayerIds) => {
+              void dispatchAction('RESOLVE_NIGHT', { deadPlayerIds, mutedPlayerId, narrative, brokenShieldPlayerIds });
+            }}
             onPublishChronicle={(text) => dispatchAction('PUBLISH_CHRONICLE', { text })}
             onEliminatePlayer={(playerId) => dispatchAction('ELIMINATE_PLAYER', { playerId })}
             onClearDefense={() => dispatchAction('CLEAR_DEFENSE')}
             onAddPlayer={(name, seatNumber, role) => dispatchAction('ADD_SINGLE_PLAYER', { name, seatNumber, role })}
             onResolveTie={(resolution, candidateIds) => dispatchAction('RESOLVE_VOTING_TIE', { resolution, candidateIds })}
+            onDeleteGame={handleDeleteRunningGame}
             language={language}
           />
         ) : viewMode === 'PLAYER' ? (
@@ -1037,9 +1209,9 @@ export default function App() {
             onRevivePlayer={(playerId) => dispatchAction('REVIVE_PLAYER', { playerId })}
             onSendToDefense={(playerId) => dispatchAction('SEND_TO_DEFENSE', { playerId })}
             onAddAccusation={(accuserId, targetId) => dispatchAction('ADD_ACCUSATION', { accuserId, targetId })}
-            onResolveNight={(deadPlayerIds, mutedPlayerId, narrative) => 
-              dispatchAction('RESOLVE_NIGHT', { deadPlayerIds, mutedPlayerId, narrative })
-            }
+            onResolveNight={(deadPlayerIds, mutedPlayerId, narrative, brokenShieldPlayerIds) => {
+              void dispatchAction('RESOLVE_NIGHT', { deadPlayerIds, mutedPlayerId, narrative, brokenShieldPlayerIds });
+            }}
             onPublishChronicle={(text) => dispatchAction('PUBLISH_CHRONICLE', { text })}
             onEliminatePlayer={(playerId) => dispatchAction('ELIMINATE_PLAYER', { playerId })}
             onClearDefense={() => dispatchAction('CLEAR_DEFENSE')}
@@ -1407,6 +1579,11 @@ export default function App() {
           onClose={() => setIsAuthProfileOpen(false)}
           language={language}
           activeRoomId={room?.roomId}
+          onOpenAutomatedQA={() => setIsAutomatedQAOpen(true)}
+          onOpenFullGameReport={() => setIsFullGameReportOpen(true)}
+          onOpenTestBench={() => setIsTestBenchOpen(true)}
+          onOpenUserStories={() => setIsUserStoriesOpen(true)}
+          onOpenAiScenarioBuilder={() => setIsAiScenarioBuilderOpen(true)}
         />
 
         {/* Multi-turn Gemini AI Assistant with Search Grounding & Maps Grounding */}

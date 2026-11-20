@@ -2,6 +2,16 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
+import { ROLE_DEFINITIONS, DEFAULT_SCENARIOS } from './src/utils/scenarios';
+import { 
+  SCENARIO_ROLES_MAP, 
+  isMafiaRole, 
+  isCitizenRole, 
+  isIndependentRole, 
+  shuffleArray, 
+  serverBalanceRoles 
+} from './src/utils/roleBalancer';
+import { runComprehensiveScenarioAudit } from './src/utils/scenarioDeckAudit';
 
 type RoleId = string;
 
@@ -148,125 +158,6 @@ function getGemini(): GoogleGenAI | null {
   return genAI;
 }
 
-const SCENARIO_ROLES_MAP: Record<string, string[]> = {
-  'classic-9': ['GODFATHER', 'DOCTOR_LECTER', 'MAFIA_SIMPLE', 'DOCTOR', 'DETECTIVE', 'SNIPER', 'ARMORED', 'CITIZEN_SIMPLE', 'CITIZEN_SIMPLE'],
-  'classic-10': ['GODFATHER', 'DOCTOR_LECTER', 'MAFIA_SIMPLE', 'DOCTOR', 'DETECTIVE', 'SNIPER', 'ARMORED', 'CITIZEN_SIMPLE', 'CITIZEN_SIMPLE', 'CITIZEN_SIMPLE'],
-  'godfather-11': ['GODFATHER', 'SAUL_GOODMAN', 'MATADOR', 'NOSTRADAMUS', 'DOCTOR_WATSON', 'SNIPER', 'CITIZEN_KANE', 'CONSTANTINE', 'CITIZEN_SIMPLE', 'CITIZEN_SIMPLE', 'CITIZEN_SIMPLE'],
-  'zodiac-12': ['GODFATHER', 'TERRORIST', 'MATADOR', 'ZODIAC', 'DOCTOR', 'DETECTIVE', 'GUNNER', 'GUARD', 'SCIENTIST', 'CITIZEN_SIMPLE', 'CITIZEN_SIMPLE', 'CITIZEN_SIMPLE'],
-  'bazpors-10': ['GODFATHER', 'SHAH_KOSH', 'MAFIA_SIMPLE', 'INQUISITOR', 'DOCTOR', 'DETECTIVE', 'SNIPER', 'MAYOR', 'CITIZEN_SIMPLE', 'CITIZEN_SIMPLE']
-};
-
-const MULTI_ALLOWED_ROLES = new Set(['CITIZEN_SIMPLE', 'MAFIA_SIMPLE', 'CUSTOM']);
-
-/**
- * Server-side dynamic role balancer for tournament accuracy.
- * Balances any role deck to the exact player count, ensuring fair ~1/3 mafia ratio
- * and avoiding missing/extra cards or duplicate unique roles for odd counts (e.g. 7, 9, 11).
- */
-function serverBalanceRoles(baseRoles: string[], targetCount: number): string[] {
-  if (targetCount <= 0) return [];
-
-  const defaultStarter = [
-    'GODFATHER', 'DOCTOR_LECTER', 'MAFIA_SIMPLE', 'NATASHA',
-    'DOCTOR', 'DETECTIVE', 'SNIPER', 'ARMORED', 'MAYOR',
-    'CITIZEN_SIMPLE', 'CITIZEN_SIMPLE', 'CITIZEN_SIMPLE', 'CITIZEN_SIMPLE'
-  ];
-
-  const sourceList = (baseRoles && baseRoles.length > 0) ? [...baseRoles] : defaultStarter.slice(0, targetCount);
-
-  // Sanitize duplicate unique roles
-  const seenUnique = new Set<string>();
-  const isMafia = (r: string) => [
-    'GODFATHER', 'MAFIA_SIMPLE', 'DOCTOR_LECTER', 'NATASHA',
-    'TERRORIST', 'MATADOR', 'SAUL_GOODMAN', 'SHAH_KOSH', 'POISONER', 'NEGOTIATOR'
-  ].includes(r);
-
-  const sanitized = sourceList.map(r => {
-    if (!MULTI_ALLOWED_ROLES.has(r)) {
-      if (seenUnique.has(r)) {
-        return isMafia(r) ? 'MAFIA_SIMPLE' : 'CITIZEN_SIMPLE';
-      }
-      seenUnique.add(r);
-    }
-    return r;
-  });
-
-  const list = [...sanitized];
-  const targetMafia = Math.max(1, Math.floor(targetCount / 3));
-
-  if (list.length > targetCount) {
-    while (list.length > targetCount) {
-      const currentMafia = list.filter(isMafia).length;
-      if (currentMafia > targetMafia) {
-        const simpleMafiaIdx = list.lastIndexOf('MAFIA_SIMPLE');
-        if (simpleMafiaIdx >= 0) {
-          list.splice(simpleMafiaIdx, 1);
-          continue;
-        }
-        const nonGfIdx = list.findIndex(r => isMafia(r) && r !== 'GODFATHER');
-        if (nonGfIdx >= 0) {
-          list.splice(nonGfIdx, 1);
-          continue;
-        }
-      }
-      const simpleCitIdx = list.lastIndexOf('CITIZEN_SIMPLE');
-      if (simpleCitIdx >= 0) {
-        list.splice(simpleCitIdx, 1);
-        continue;
-      }
-      const secondaryCitIdx = list.findIndex(r => !isMafia(r) && r !== 'DOCTOR' && r !== 'DETECTIVE');
-      if (secondaryCitIdx >= 0) {
-        list.splice(secondaryCitIdx, 1);
-        continue;
-      }
-      list.pop();
-    }
-  }
-
-  if (list.length < targetCount) {
-    while (list.length < targetCount) {
-      const currentMafia = list.filter(isMafia).length;
-      if (currentMafia < targetMafia) {
-        list.push('MAFIA_SIMPLE');
-      } else {
-        list.push('CITIZEN_SIMPLE');
-      }
-    }
-  }
-
-  // Final verification: ensure exact mafia ratio
-  let finalMafia = list.filter(isMafia).length;
-  if (finalMafia > targetMafia) {
-    for (let i = list.length - 1; i >= 0 && finalMafia > targetMafia; i--) {
-      if (isMafia(list[i]) && list[i] !== 'GODFATHER') {
-        list[i] = 'CITIZEN_SIMPLE';
-        finalMafia--;
-      }
-    }
-  } else if (finalMafia < targetMafia) {
-    for (let i = list.length - 1; i >= 0 && finalMafia < targetMafia; i--) {
-      if (list[i] === 'CITIZEN_SIMPLE') {
-        list[i] = 'MAFIA_SIMPLE';
-        finalMafia++;
-      }
-    }
-  }
-
-  // Ensure 1 Godfather and 1 Doctor
-  if (!list.includes('GODFATHER')) {
-    const mafiaIdx = list.findIndex(isMafia);
-    if (mafiaIdx >= 0) list[mafiaIdx] = 'GODFATHER';
-    else list[0] = 'GODFATHER';
-  }
-
-  if (targetCount >= 6 && !list.includes('DOCTOR') && !list.includes('DOCTOR_WATSON')) {
-    const citIdx = list.findIndex(r => r === 'CITIZEN_SIMPLE');
-    if (citIdx >= 0) list[citIdx] = 'DOCTOR';
-  }
-
-  return list.slice(0, targetCount);
-}
-
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -276,6 +167,12 @@ async function startServer() {
   // Health check
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', activeRooms: rooms.size, timestamp: Date.now() });
+  });
+
+  // Automated QA Scenario Balancer & Rules Verification endpoint
+  app.get('/api/qa/audit-scenarios', (_req, res) => {
+    const report = runComprehensiveScenarioAudit();
+    res.json(report);
   });
 
   // Ping & Latency Endpoint for Sync & Compensation
@@ -368,6 +265,55 @@ async function startServer() {
     };
 
     res.json({ success: true, room: sanitizedRoom });
+  });
+
+  // Delete / Terminate Running Game Room
+  app.delete('/api/rooms/:roomId', (req, res) => {
+    const { roomId } = req.params;
+    const roomKey = roomId.toUpperCase();
+    const room = rooms.get(roomKey);
+    if (!room) {
+      return res.status(404).json({ error: 'ROOM_NOT_FOUND', message: 'اتاق یافت نشد' });
+    }
+
+    // Broadcast TERMINATED state to any listening players
+    const terminatedRoom = {
+      ...room,
+      phase: 'GAME_OVER',
+      announcements: [
+        ...room.announcements,
+        {
+          id: `ann_term_${Date.now()}`,
+          title: 'بازی توسط گرداننده حذف شد',
+          content: 'این مسابقه توسط گرداننده لغو و اتاق بازی با موفقیت حذف گردید.',
+          phase: 'GAME_OVER',
+          dayNumber: room.dayNumber,
+          timestamp: Date.now(),
+          isPublic: true,
+          type: 'WARNING' as const
+        }
+      ]
+    };
+
+    rooms.set(roomKey, terminatedRoom);
+    broadcastRoomUpdate(roomKey);
+    rooms.delete(roomKey);
+
+    // Close any lingering SSE streams for this room
+    const clients = sseClients.get(roomKey);
+    if (clients) {
+      clients.forEach(c => {
+        try {
+          c.write(`data: ${JSON.stringify(terminatedRoom)}\n\n`);
+          c.end();
+        } catch {
+          // ignore
+        }
+      });
+      sseClients.delete(roomKey);
+    }
+
+    res.json({ success: true, message: 'اتاق با موفقیت حذف و مسابقه لغو شد' });
   });
 
   // SSE Stream / Events for Real-Time synchronization
@@ -698,12 +644,16 @@ async function startServer() {
           ? customDeckRoles 
           : (SCENARIO_ROLES_MAP[room.scenarioId] || SCENARIO_ROLES_MAP['classic-9']);
         const balancedRoles = serverBalanceRoles(baseDeck, room.players.length);
-        const shuffledRoles = [...balancedRoles].sort(() => Math.random() - 0.5);
+        const shuffledRoles = shuffleArray(balancedRoles);
 
         room.players.forEach((p, idx) => {
           p.role = shuffledRoles[idx] || p.role || 'CITIZEN_SIMPLE';
           p.isAlive = true;
           p.inDefense = false;
+          p.speechMuted = false;
+          if (p.role === 'ARMORED') {
+            p.hasShield = true;
+          }
         });
 
         room.phase = 'DAY_DISCUSSION';
@@ -860,6 +810,78 @@ async function startServer() {
         if (payload.action) {
           room.nightActions.push(payload.action);
         }
+        break;
+      }
+
+      case 'RESOLVE_NIGHT': {
+        const deadPlayerIds: string[] = Array.isArray(payload.deadPlayerIds) ? payload.deadPlayerIds : [];
+        const mutedPlayerId: string | undefined = typeof payload.mutedPlayerId === 'string' ? payload.mutedPlayerId : undefined;
+        const narrative: string | undefined = typeof payload.narrative === 'string' ? payload.narrative : undefined;
+        const brokenShieldPlayerIds: string[] = Array.isArray(payload.brokenShieldPlayerIds) ? payload.brokenShieldPlayerIds : [];
+
+        // 1. Break shields for Armored
+        brokenShieldPlayerIds.forEach(pid => {
+          const p = room.players.find(pl => pl.id === pid);
+          if (p) {
+            p.hasShield = false;
+          }
+        });
+
+        // 2. Mark dead players
+        deadPlayerIds.forEach(pid => {
+          const p = room.players.find(pl => pl.id === pid);
+          if (p) {
+            p.isAlive = false;
+            p.inDefense = false;
+          }
+        });
+
+        // 3. Reset speech mutes and apply new mute
+        room.players.forEach(p => {
+          p.speechMuted = false;
+        });
+        if (mutedPlayerId) {
+          const muted = room.players.find(p => p.id === mutedPlayerId);
+          if (muted) {
+            muted.speechMuted = true;
+          }
+        }
+
+        // 4. Advance phase and increment day
+        room.phase = 'DAY_DISCUSSION';
+        room.dayNumber = (room.dayNumber || 1) + 1;
+        room.timerSeconds = (room as any).defaultSpeechSeconds || 60;
+        room.timerTotal = room.timerSeconds;
+        room.isTimerRunning = false;
+        room.activeDefensePlayers = [];
+        room.currentSpeakerSeat = null;
+        room.currentChallengeSpeakerSeat = null;
+
+        // 5. Post morning chronicle announcement
+        const deadNames = room.players
+          .filter(p => deadPlayerIds.includes(p.id))
+          .map(p => p.name);
+
+        const announcementTitle = deadNames.length > 0 
+          ? `طلوع روز ${room.dayNumber} — تلفات شبانه` 
+          : `طلوع روز ${room.dayNumber} — شبی آرام بدون کشته`;
+
+        const announcementContent = narrative || (
+          deadNames.length > 0 
+            ? `با آغاز روز ${room.dayNumber}، پیکر بی‌جان (${deadNames.join(' و ')}) شناسایی و از بازی خارج شدند.` 
+            : `هیچ قتلی در شب گذشته رخ نداد. شهروندان با هوشیاری یا نجات به‌موقع پزشک روز جدید را آغاز می‌کنند.`
+        );
+
+        room.announcements.unshift({
+          id: `ann_morning_${Date.now()}`,
+          title: announcementTitle,
+          content: announcementContent,
+          phase: 'DAY_DISCUSSION',
+          dayNumber: room.dayNumber,
+          timestamp: Date.now(),
+          isPublic: true,
+          type: deadNames.length > 0 ? 'DEATH' : 'INFO'
+        });
         break;
       }
 
@@ -1036,10 +1058,13 @@ async function startServer() {
         const deck: any[] = (room as any).deckRoles || [];
         const baseRoleIds = deck.length > 0 ? deck.map(d => d.roleId) : room.players.map(p => p.role);
         const balanced = serverBalanceRoles(baseRoleIds, room.players.length);
-        const shuffledDeck = [...balanced].sort(() => Math.random() - 0.5);
+        const shuffledDeck = shuffleArray(balanced);
 
         room.players.forEach((player, idx) => {
           player.role = shuffledDeck[idx] || player.role || 'CITIZEN_SIMPLE';
+          if (player.role === 'ARMORED') {
+            player.hasShield = true;
+          }
           if (deck[idx]?.customName) {
             (player as any).customRoleName = deck[idx].customName;
           }
